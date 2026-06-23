@@ -149,7 +149,8 @@ describe("GhGitHubAdapter", () => {
         { dryRun: true }
       )
     ).resolves.toMatchObject({
-      dryRun: true
+      dryRun: true,
+      success: true
     });
   });
 
@@ -176,6 +177,7 @@ describe("GhGitHubAdapter", () => {
       )
     ).resolves.toMatchObject({
       dryRun: false,
+      success: true,
       output: {
         exitCode: 0,
         stdout: "ok",
@@ -183,5 +185,32 @@ describe("GhGitHubAdapter", () => {
       }
     });
     expect(calls).toEqual([["project", "create", "--owner", "owner", "--title", "Roadmap"]]);
+  });
+
+  it("surfaces failed gh execution without dropping command output", async () => {
+    const adapter = new GhGitHubAdapter(async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "failed"
+    }));
+
+    await expect(
+      adapter.execute(
+        {
+          kind: "create-issue",
+          repository: "owner/repo",
+          title: "Do work",
+          body: "Details"
+        },
+        { dryRun: false }
+      )
+    ).resolves.toMatchObject({
+      dryRun: false,
+      success: false,
+      output: {
+        exitCode: 1,
+        stderr: "failed"
+      }
+    });
   });
 });
