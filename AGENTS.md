@@ -188,6 +188,24 @@ warning.
   verification, risk, rollback plan, and scope checklist.
 - Do not open broad PRs that combine unrelated issues.
 
+## AI Review Request Rules
+
+After opening a non-draft PR, wait up to 5 minutes for the AI coding review
+agent to either post review comments or mark the PR as OK.
+
+If review comments appear:
+
+1. Verify each comment against the current branch code.
+2. Fix valid comments with the smallest scoped change.
+3. Reply in-thread with what changed and the verification run.
+4. Resolve the thread after replying.
+5. Push the fix.
+6. Request a fresh review by posting a top-level PR comment:
+   `@codex review`
+
+If no AI review appears within 5 minutes, report that no review appeared yet.
+Do not merge only because the AI review has not appeared.
+
 ## PR Issue and Project Linking Rules
 
 - The PR body must include `Fixes #<issue-number>` when merging the PR should
@@ -200,8 +218,8 @@ warning.
   Project has an `In Review` status option.
 - If `In Review` exists, set the issue Project Status to `In Review` after the
   PR is opened.
-- If `In Review` does not exist, keep `In Progress` and report that no
-  `In Review` option exists.
+- Do not create an `In Review` status option. If `In Review` does not exist,
+  keep `In Progress` and report that no `In Review` option exists.
 - The GitHub Project tracks the issue as the unit of work. Do not add the PR as
   a separate Project item unless the selected issue explicitly requires it.
 - Confirm `Priority`, `Type`, `Area`, and `Source` remain set on the issue
