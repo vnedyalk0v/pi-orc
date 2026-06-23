@@ -81,6 +81,7 @@ export interface GitHubExecuteOptions {
 export interface GitHubActionResult {
   plan: GitHubCommandPlan;
   dryRun: boolean;
+  success: boolean;
   output?: GitHubCommandOutput;
 }
 
@@ -135,14 +136,18 @@ export class GhGitHubAdapter implements GitHubAdapter {
     if (options.dryRun) {
       return {
         plan,
-        dryRun: true
+        dryRun: true,
+        success: true
       };
     }
+
+    const output = await this.run(plan.args);
 
     return {
       plan,
       dryRun: false,
-      output: await this.run(plan.args)
+      success: output.exitCode === 0,
+      output
     };
   }
 }
