@@ -1,0 +1,6 @@
+node_modules/
+dist/
+coverage/
+.ai-workflow/runs/
+.ai-workflow/cache/
+.ai-workflow/tmp/
