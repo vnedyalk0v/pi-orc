@@ -33,7 +33,7 @@ const GitHubRepositoryNameSchema = z
 const GitBranchNameSchema = z
   .string()
   .min(1)
-  .refine((name) => !/[\s\x00-\x1F\x7F~^:?*[\]\\]/.test(name))
+  .refine((name) => !/[\s\x00-\x1F\x7F~^:?*\[\\]/.test(name))
   .refine((name) => !name.includes(".."))
   .refine((name) => !name.includes("//"))
   .refine((name) => !name.includes("@{"))
