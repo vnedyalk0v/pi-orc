@@ -64,18 +64,18 @@ describe("bootstrap plan generation", () => {
     expect(dryRun.markdown).toContain("Repository: `vnedyalk0v/example-typescript-app`");
   });
 
-  it("quotes intake values in rendered git commands", () => {
+  it("quotes valid intake values in rendered git commands", () => {
     const plan = generateBootstrapPlan({
       ...typescriptIntake,
-      repositoryName: "tricky'repo",
+      repositoryName: "tricky.repo_name-x",
       defaultBranch: "feature&x"
     });
 
     expect(plan.gitActions.map((action) => action.command)).toEqual(
       expect.arrayContaining([
         "git init -b 'feature&x'",
-        "git remote add origin 'git@github.com:vnedyalk0v/tricky'\\''repo.git'",
-        "git commit -m 'chore: bootstrap tricky'\\''repo'",
+        "git remote add origin 'git@github.com:vnedyalk0v/tricky.repo_name-x.git'",
+        "git commit -m 'chore: bootstrap tricky.repo_name-x'",
         "git push -u origin 'feature&x'"
       ])
     );

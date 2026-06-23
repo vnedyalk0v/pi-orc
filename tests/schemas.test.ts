@@ -204,6 +204,34 @@ describe("new project intake schema", () => {
     expect(intake.verificationCommands).toEqual(["npm run typecheck", "npm test"]);
   });
 
+  it("accepts valid GitHub and git identifiers", () => {
+    const intake = NewProjectIntakeSchema.parse({
+      projectName: "Example App",
+      repositoryOwner: "vnedyalk0v",
+      repositoryName: "example.repo_name-1",
+      defaultBranch: "feature/bootstrap",
+      githubProjectOwner: "example-org"
+    });
+
+    expect(intake.repositoryOwner).toBe("vnedyalk0v");
+    expect(intake.githubProjectOwner).toBe("example-org");
+    expect(intake.defaultBranch).toBe("feature/bootstrap");
+  });
+
+  it("rejects invalid GitHub and git identifiers", () => {
+    const baseIntake = {
+      projectName: "Example App",
+      repositoryOwner: "vnedyalk0v",
+      repositoryName: "example-app"
+    };
+
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryOwner: "bad owner" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryOwner: "bad/owner" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryName: "bad/repo" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature bad" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature..bad" }).success).toBe(false);
+  });
+
   it("rejects unknown fields and unsupported enum values", () => {
     expect(
       NewProjectIntakeSchema.safeParse({

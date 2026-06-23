@@ -18,16 +18,31 @@ export const defaultNewProjectIntakeOptions = {
   pushInitialCommit: false
 } as const;
 
+const GitHubOwnerNameSchema = z.string().regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/);
+const GitHubRepositoryNameSchema = z
+  .string()
+  .min(1)
+  .regex(/^[A-Za-z0-9._-]+$/)
+  .refine((name) => name !== "." && name !== "..");
+const GitBranchNameSchema = z
+  .string()
+  .min(1)
+  .refine((name) => !/[\s\x00-\x1F\x7F~^:?*[\]\\]/.test(name))
+  .refine((name) => !name.includes(".."))
+  .refine((name) => !name.endsWith("/"))
+  .refine((name) => !name.endsWith("."))
+  .refine((name) => !name.endsWith(".lock"));
+
 const NewProjectIntakeBaseSchema = z
   .object({
     projectName: z.string().min(1),
-    repositoryOwner: z.string().min(1),
-    repositoryName: z.string().min(1),
+    repositoryOwner: GitHubOwnerNameSchema,
+    repositoryName: GitHubRepositoryNameSchema,
     repositoryVisibility: ProjectRepositoryVisibilitySchema.default(defaultNewProjectIntakeOptions.repositoryVisibility),
     description: z.string().default(defaultNewProjectIntakeOptions.description),
-    defaultBranch: z.string().min(1).default(defaultNewProjectIntakeOptions.defaultBranch),
+    defaultBranch: GitBranchNameSchema.default(defaultNewProjectIntakeOptions.defaultBranch),
     githubProjectOwnerType: GitHubProjectOwnerTypeSchema.default(defaultNewProjectIntakeOptions.githubProjectOwnerType),
-    githubProjectOwner: z.string().min(1).optional(),
+    githubProjectOwner: GitHubOwnerNameSchema.optional(),
     workflowMode: z.enum(workflowModes).default(defaultNewProjectIntakeOptions.workflowMode),
     stackProfile: z.string().min(1).default(defaultNewProjectIntakeOptions.stackProfile),
     verificationCommands: z.array(z.string().min(1)).default(() => [...defaultNewProjectIntakeOptions.verificationCommands]),
