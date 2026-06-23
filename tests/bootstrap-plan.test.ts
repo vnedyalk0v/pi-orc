@@ -23,6 +23,9 @@ describe("bootstrap plan generation", () => {
     expect(plan.files.map((file) => file.path)).toEqual(
       expect.arrayContaining(["AGENTS.md", "README.md", ".gitignore", "docs/architecture.md"])
     );
+    expect(plan.directories.map((directory) => directory.path)).toEqual(
+      expect.arrayContaining(["docs", "docs/ai", "docs/ai/verified-reports"])
+    );
     expect(plan.githubActions.map((action) => action.action.kind)).toEqual(
       expect.arrayContaining(["create-repository", "create-project", "create-label", "create-issue"])
     );

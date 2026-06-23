@@ -148,9 +148,11 @@ function fileActions(intake: NewProjectIntake): BootstrapFileAction[] {
 }
 
 function directoryActions(files: readonly BootstrapFileAction[]): BootstrapDirectoryAction[] {
-  const directories = files
-    .map((file) => file.path.split("/").slice(0, -1).join("/"))
-    .filter((directory) => directory.length > 0);
+  const directories = files.flatMap((file) => {
+    const parts = file.path.split("/").slice(0, -1);
+
+    return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
+  });
 
   return [...new Set(directories)].map((path) => ({
     path,
