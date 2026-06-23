@@ -196,9 +196,10 @@ After opening a non-draft PR, wait up to 10 minutes for the AI coding review
 agent to post review comments, open review threads, or mark the PR as OK.
 
 A thumbs-up reaction from `chatgpt-codex-connector[bot]` on the PR is an OK
-review signal. If that reaction is present, CI is green, the PR is mergeable,
-and there are no unresolved review threads, do not keep waiting only because no
-formal review object exists.
+review signal only if it was created after the latest pushed commit or latest
+`@codex review` request, whichever is newer. If that fresh reaction is present,
+CI is green, the PR is mergeable, and there are no unresolved review threads, do
+not keep waiting only because no formal review object exists.
 
 If review comments appear:
 
