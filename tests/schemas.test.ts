@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  NewProjectIntakeSchema,
   WorkerHandoffSchema,
   WorkerProfileSchema,
   WorkerRunResultSchema,
@@ -156,6 +157,70 @@ describe("worker contract schemas", () => {
         kind: "durable",
         verified: false
       }).verified
+    ).toBe(false);
+  });
+});
+
+describe("new project intake schema", () => {
+  it("applies documented defaults to minimal intake", () => {
+    const intake = NewProjectIntakeSchema.parse({
+      projectName: "Example App",
+      repositoryOwner: "vnedyalk0v",
+      repositoryName: "example-app"
+    });
+
+    expect(intake).toMatchObject({
+      repositoryVisibility: "private",
+      description: "",
+      defaultBranch: "main",
+      githubProjectOwnerType: "user",
+      githubProjectOwner: "vnedyalk0v",
+      workflowMode: "assisted",
+      stackProfile: "generic",
+      verificationCommands: [],
+      createDocsSkeleton: true,
+      createGitHubProject: false,
+      pushInitialCommit: false
+    });
+  });
+
+  it("represents organization project ownership and workflow modes", () => {
+    const intake = NewProjectIntakeSchema.parse({
+      projectName: "Example App",
+      repositoryOwner: "example-org",
+      repositoryName: "example-app",
+      repositoryVisibility: "public",
+      githubProjectOwnerType: "organization",
+      githubProjectOwner: "example-org",
+      workflowMode: "auto",
+      stackProfile: "typescript",
+      verificationCommands: ["npm run typecheck", "npm test"],
+      createGitHubProject: true,
+      pushInitialCommit: true
+    });
+
+    expect(intake.githubProjectOwnerType).toBe("organization");
+    expect(intake.workflowMode).toBe("auto");
+    expect(intake.verificationCommands).toEqual(["npm run typecheck", "npm test"]);
+  });
+
+  it("rejects unknown fields and unsupported enum values", () => {
+    expect(
+      NewProjectIntakeSchema.safeParse({
+        projectName: "Example App",
+        repositoryOwner: "vnedyalk0v",
+        repositoryName: "example-app",
+        workflowMode: "autonomous"
+      }).success
+    ).toBe(false);
+
+    expect(
+      NewProjectIntakeSchema.safeParse({
+        projectName: "Example App",
+        repositoryOwner: "vnedyalk0v",
+        repositoryName: "example-app",
+        unexpected: true
+      }).success
     ).toBe(false);
   });
 });

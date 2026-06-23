@@ -11,6 +11,10 @@ export {
   type WorkflowPolicyDecisionStatus
 } from "./WorkflowPolicy.js";
 export {
+  defaultNewProjectIntakeOptions,
+  GitHubProjectOwnerTypeSchema,
+  NewProjectIntakeSchema,
+  ProjectRepositoryVisibilitySchema,
   WorkerContextPolicySchema,
   WorkerErrorSchema,
   WorkerEventSchema,
@@ -26,5 +30,5 @@ export {
 export type { WorkerHandoff } from "./WorkerHandoff.js";
 export type { WorkerContextPolicy, WorkerOutputContract, WorkerPermissionSet, WorkerProfile, WorkerToolPolicy } from "./WorkerProfile.js";
 export type { WorkerRunArtifact, WorkerRunError, WorkerRunEvent, WorkerRunResult, WorkflowArtifact } from "./WorkerRunResult.js";
-export type { WorkerRunInput } from "./schemas.js";
+export type { GitHubProjectOwnerType, NewProjectIntake, ProjectRepositoryVisibility, WorkerRunInput } from "./schemas.js";
 export type { WorkerRuntime } from "./WorkerRuntime.js";

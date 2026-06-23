@@ -6,8 +6,12 @@ export const packageInfo = {
 export { GhGitHubAdapter } from "./github/index.js";
 export {
   decideWorkflowAction,
+  defaultNewProjectIntakeOptions,
   defaultWorkflowPolicies,
+  GitHubProjectOwnerTypeSchema,
+  NewProjectIntakeSchema,
   PiSdkWorkerRuntime,
+  ProjectRepositoryVisibilitySchema,
   WorkerContextPolicySchema,
   WorkerErrorSchema,
   WorkerEventSchema,
@@ -25,6 +29,9 @@ export {
   type PiSdkWorkerRuntimeOptions
 } from "./runtime/index.js";
 export type {
+  GitHubProjectOwnerType,
+  NewProjectIntake,
+  ProjectRepositoryVisibility,
   WorkflowActionCategory,
   WorkerContextPolicy,
   WorkerHandoff,
