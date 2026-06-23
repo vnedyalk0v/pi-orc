@@ -1,0 +1,276 @@
+# pi-orc Architecture
+
+## Overview
+
+`pi-orc` is an opinionated Pi package for verified AI-assisted software development workflows.
+
+It provides:
+
+- workflow commands
+- SDK-driven worker runtime
+- workflow-specific worker profiles
+- structured handoff contracts
+- artifact hygiene rules
+- GitHub automation adapters
+- target repository templates
+
+The package is built for a specific workflow:
+
+Idea → Repo → Docs → Issues → Audit → Verify → Implement → Verify → PR → Review Bot → Ready to Merge
+
+## Architectural principle
+
+The orchestrator owns workflow policy.
+
+Workers perform scoped reasoning or implementation tasks. They do not own policy decisions, GitHub mutation decisions, or artifact publication decisions.
+
+## Main layers
+
+### 1. Command layer
+
+User-facing commands such as:
+
+- `pi-orc new-project`
+- `pi-orc new-project --dry-run`
+
+Future commands may include:
+
+- `pi-orc verify-docs`
+- `pi-orc audit`
+- `pi-orc verify-audit`
+- `pi-orc issues`
+- `pi pr`
+- `pi-orc sync-review`
+
+### 2. Workflow orchestration layer
+
+Responsible for:
+
+- loading config
+- selecting workflow mode
+- building plans
+- enforcing policy gates
+- asking for confirmation where needed
+- coordinating workers
+- writing reports
+- calling GitHub adapters
+
+### 3. Worker runtime layer
+
+Responsible for starting clean Pi SDK worker sessions.
+
+Workers are created through the Pi SDK, not by spawning the Pi CLI.
+
+Each worker receives:
+
+- a worker profile
+- a structured handoff
+- allowed context
+- allowed tools
+- expected output contract
+
+Workers should not inherit parent chat history.
+
+### 4. Worker profile layer
+
+A worker profile defines:
+
+- worker id
+- purpose
+- context policy
+- allowed tools
+- denied tools
+- file permissions
+- GitHub permissions
+- output contract
+- confirmation requirements
+
+Workers are workflow-specific. They are not generic sub-agents.
+
+### 5. Artifact layer
+
+The artifact layer defines what can be written, committed, ignored, or published.
+
+Raw artifacts are local-only.
+
+Verified durable artifacts may be committed.
+
+### 6. GitHub adapter layer
+
+The GitHub adapter wraps GitHub CLI or API calls.
+
+It should provide typed operations such as:
+
+- check authentication
+- create repository
+- configure repository
+- create labels
+- create project
+- create issues
+- create pull request
+- read review comments
+- resolve review threads
+
+Workers should propose GitHub actions. The orchestrator should approve and execute them.
+
+## Clean-context worker model
+
+Each worker run should be isolated.
+
+A worker should receive only:
+
+- task objective
+- relevant files
+- relevant decisions
+- constraints
+- expected output format
+- forbidden actions
+- known risks
+
+A worker should not receive:
+
+- full previous chat history
+- unrelated source files
+- unrelated audit output
+- broad permission to mutate GitHub
+- broad permission to refactor
+
+## Initial worker types
+
+v0.1 requires only the foundation workers.
+
+### repo-bootstrap worker
+
+Purpose:
+
+- produce a target repository bootstrap plan
+- prepare generated file manifests
+- validate that required templates exist
+
+May:
+
+- read templates
+- write local generated files in controlled locations
+
+May not:
+
+- create GitHub repositories directly
+- push commits directly
+- open pull requests directly
+
+### planning worker
+
+Purpose:
+
+- assist with project planning documents
+
+May:
+
+- read and write planning documents
+
+May not:
+
+- create issues automatically
+- modify source code
+
+### verification worker
+
+Purpose:
+
+- verify documents, findings, or implementation evidence
+
+May:
+
+- read relevant files
+- produce verified reports
+
+May not:
+
+- edit source files
+- create GitHub issues
+- push commits
+- resolve comments
+
+## Policy modes
+
+### manual
+
+The safest mode.
+
+The package produces plans and files but does not perform external mutations unless the user explicitly performs them.
+
+### assisted
+
+The default target mode.
+
+The package may perform local writes and prepare GitHub actions, but must ask before external or history-changing actions.
+
+### auto
+
+A configurable mode for trusted projects.
+
+The package may perform approved low-risk actions automatically. Dangerous actions still require explicit policy configuration.
+
+## GitHub mutation policy
+
+GitHub mutations include:
+
+- creating repositories
+- editing repository settings
+- creating projects
+- creating issues
+- adding issues to projects
+- creating pull requests
+- commenting on reviews
+- resolving review threads
+
+These actions must pass through the policy layer.
+
+Workers should not perform these actions directly.
+
+## Artifact hygiene
+
+Committed:
+
+- README
+- ADRs
+- stable architecture docs
+- workflow config
+- templates
+- verified reports
+
+Ignored/local-only:
+
+- worker run directories
+- raw audit outputs
+- unverified findings
+- temporary handoffs
+- cache
+- transcripts
+
+## Target repository foundation
+
+A repository generated by `pi-orc` should begin with:
+
+- `AGENTS.md`
+- `.ai-workflow/config.yml`
+- `.github/ISSUE_TEMPLATE/*`
+- `.github/pull_request_template.md`
+- `docs/prd.md`
+- `docs/mvp.md`
+- `docs/architecture.md`
+- `docs/implementation-plan.md`
+- `docs/adr/ADR-0001-project-foundation.md`
+
+## v0.1 vertical slice
+
+The first vertical slice is:
+
+1. User runs `pi-orc new-project --dry-run`
+2. Package collects project intake
+3. Package builds bootstrap plan
+4. Package shows planned files and GitHub actions
+5. No external mutation happens in dry-run
+6. Package writes a structured dry-run report
+
+The next slice adds execution mode after policy gates are implemented.

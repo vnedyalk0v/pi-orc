@@ -1,0 +1,63 @@
+name: Design / ADR
+description: Propose or refine an architecture decision.
+title: "docs(architecture): "
+labels:
+  - "type:docs"
+  - "area:docs"
+  - "status:needs-design"
+  - "source:manual"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for architecture decisions, workflow policy decisions, or ADR proposals.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What problem or decision needs to be addressed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What decision or direction is being proposed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other options were considered?
+      placeholder: |
+        - Option A:
+        - Option B:
+        - Option C:
+    validations:
+      required: false
+
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences
+      description: What are the tradeoffs?
+      placeholder: |
+        Positive:
+        - ...
+
+        Negative:
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What document/code changes complete this design issue?
+    validations:
+      required: true

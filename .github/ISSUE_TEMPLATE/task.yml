@@ -1,0 +1,77 @@
+name: Task
+description: Track planned implementation or maintenance work.
+title: "chore: "
+labels:
+  - "type:chore"
+  - "source:manual"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for planned package work that is not a bug report.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What needs to be done?
+      placeholder: Describe the task clearly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this is needed
+      description: Explain the reason for this task.
+      placeholder: This is needed because...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - sdk-runtime
+        - repo-bootstrap
+        - github
+        - workflow
+        - templates
+        - docs
+        - ci
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What must be true for this issue to be complete?
+      placeholder: |
+        - ...
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Implementation Notes
+      description: Optional technical notes or constraints.
+    validations:
+      required: false
