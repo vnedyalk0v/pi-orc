@@ -21,6 +21,7 @@ describe("default workflow policies", () => {
     const manual = defaultWorkflowPolicies.manual;
 
     expect(decideWorkflowAction(manual, "read-repository").status).toBe("allowed");
+    expect(decideWorkflowAction(manual, "prepare-github-mutation").status).toBe("allowed");
     expect(decideWorkflowAction(manual, "write-local-files").status).toBe("requires-confirmation");
     expect(decideWorkflowAction(manual, "create-github-issue").status).toBe("blocked");
     expect(decideWorkflowAction(manual, "commit").status).toBe("blocked");

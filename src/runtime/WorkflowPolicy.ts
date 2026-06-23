@@ -48,7 +48,7 @@ export const defaultWorkflowPolicies = {
       "read-repository": "allowed",
       "write-local-files": "requires-confirmation",
       "run-local-command": "requires-confirmation",
-      "prepare-github-mutation": "blocked",
+      "prepare-github-mutation": "allowed",
       "create-github-repository": "blocked",
       "edit-github-repository-settings": "blocked",
       "create-github-project": "blocked",
