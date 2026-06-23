@@ -1,0 +1,16 @@
+{
+  "projectName": "Example Organization App",
+  "repositoryOwner": "example-org",
+  "repositoryName": "example-organization-app",
+  "repositoryVisibility": "private",
+  "description": "Organization-owned bootstrap target",
+  "defaultBranch": "main",
+  "githubProjectOwnerType": "organization",
+  "githubProjectOwner": "example-org",
+  "workflowMode": "assisted",
+  "stackProfile": "typescript",
+  "verificationCommands": ["npm run typecheck", "npm test"],
+  "createDocsSkeleton": true,
+  "createGitHubProject": true,
+  "pushInitialCommit": true
+}

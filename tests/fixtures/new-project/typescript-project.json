@@ -1,0 +1,16 @@
+{
+  "projectName": "Example TypeScript App",
+  "repositoryOwner": "vnedyalk0v",
+  "repositoryName": "example-typescript-app",
+  "repositoryVisibility": "private",
+  "description": "Example bootstrap target",
+  "defaultBranch": "main",
+  "githubProjectOwnerType": "user",
+  "githubProjectOwner": "vnedyalk0v",
+  "workflowMode": "assisted",
+  "stackProfile": "typescript",
+  "verificationCommands": ["npm run typecheck", "npm test"],
+  "createDocsSkeleton": true,
+  "createGitHubProject": true,
+  "pushInitialCommit": true
+}

@@ -1,0 +1,16 @@
+{
+  "projectName": "Example Personal App",
+  "repositoryOwner": "vnedyalk0v",
+  "repositoryName": "example-personal-app",
+  "repositoryVisibility": "private",
+  "description": "Personal bootstrap target",
+  "defaultBranch": "main",
+  "githubProjectOwnerType": "user",
+  "githubProjectOwner": "vnedyalk0v",
+  "workflowMode": "assisted",
+  "stackProfile": "generic",
+  "verificationCommands": ["npm test"],
+  "createDocsSkeleton": true,
+  "createGitHubProject": true,
+  "pushInitialCommit": false
+}
