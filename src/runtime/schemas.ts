@@ -29,6 +29,10 @@ const GitBranchNameSchema = z
   .min(1)
   .refine((name) => !/[\s\x00-\x1F\x7F~^:?*[\]\\]/.test(name))
   .refine((name) => !name.includes(".."))
+  .refine((name) => !name.includes("//"))
+  .refine((name) => !name.includes("@{"))
+  .refine((name) => !name.startsWith("/"))
+  .refine((name) => !name.startsWith("-"))
   .refine((name) => !name.endsWith("/"))
   .refine((name) => !name.endsWith("."))
   .refine((name) => !name.endsWith(".lock"));

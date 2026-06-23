@@ -230,6 +230,10 @@ describe("new project intake schema", () => {
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryName: "bad/repo" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature bad" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature..bad" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "/feature" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature//x" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "foo@{bar" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "-bad" }).success).toBe(false);
   });
 
   it("rejects unknown fields and unsupported enum values", () => {
