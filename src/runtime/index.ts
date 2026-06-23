@@ -1,5 +1,16 @@
 export { PiSdkWorkerRuntime, type PiSdkSessionFactory, type PiSdkWorkerRuntimeOptions } from "./PiSdkWorkerRuntime.js";
 export {
+  decideWorkflowAction,
+  defaultWorkflowPolicies,
+  workflowActionCategories,
+  workflowModes,
+  type WorkflowActionCategory,
+  type WorkflowMode,
+  type WorkflowPolicy,
+  type WorkflowPolicyDecision,
+  type WorkflowPolicyDecisionStatus
+} from "./WorkflowPolicy.js";
+export {
   WorkerContextPolicySchema,
   WorkerErrorSchema,
   WorkerEventSchema,

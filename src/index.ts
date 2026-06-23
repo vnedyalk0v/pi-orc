@@ -4,6 +4,8 @@ export const packageInfo = {
 } as const;
 
 export {
+  decideWorkflowAction,
+  defaultWorkflowPolicies,
   PiSdkWorkerRuntime,
   WorkerContextPolicySchema,
   WorkerErrorSchema,
@@ -15,11 +17,14 @@ export {
   WorkerRunInputSchema,
   WorkerRunResultSchema,
   WorkerToolPolicySchema,
+  workflowActionCategories,
   WorkflowArtifactSchema,
+  workflowModes,
   type PiSdkSessionFactory,
   type PiSdkWorkerRuntimeOptions
 } from "./runtime/index.js";
 export type {
+  WorkflowActionCategory,
   WorkerContextPolicy,
   WorkerHandoff,
   WorkerOutputContract,
@@ -32,5 +37,9 @@ export type {
   WorkerRunResult,
   WorkerToolPolicy,
   WorkflowArtifact,
+  WorkflowMode,
+  WorkflowPolicy,
+  WorkflowPolicyDecision,
+  WorkflowPolicyDecisionStatus,
   WorkerRuntime
 } from "./runtime/index.js";
