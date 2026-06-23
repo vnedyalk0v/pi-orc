@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { createBootstrapPlanDryRun } from "../index.js";
 import type { NewProjectIntake } from "../index.js";
@@ -118,6 +118,13 @@ function helpText(): string {
   ].join("\n");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+export function isCliEntrypoint(
+  entryPath: string | undefined = process.argv[1],
+  modulePath = fileURLToPath(import.meta.url)
+): boolean {
+  return Boolean(entryPath && realpathSync(entryPath) === realpathSync(modulePath));
+}
+
+if (isCliEntrypoint()) {
   process.exitCode = runPiOrcCli(process.argv.slice(2));
 }

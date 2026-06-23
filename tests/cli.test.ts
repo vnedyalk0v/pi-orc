@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { runPiOrcCli } from "../src/cli/pi-orc.js";
+import { isCliEntrypoint, runPiOrcCli } from "../src/cli/pi-orc.js";
 
 function run(args: readonly string[]) {
   let stdout = "";
@@ -40,5 +43,20 @@ describe("pi-orc CLI", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("new-project currently requires --dry-run");
+  });
+
+  it("detects the CLI entrypoint through a bin symlink", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-orc-cli-"));
+    const target = join(dir, "pi-orc.js");
+    const link = join(dir, "pi-orc");
+
+    try {
+      writeFileSync(target, "");
+      symlinkSync(target, link);
+
+      expect(isCliEntrypoint(link, target)).toBe(true);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 });
