@@ -64,13 +64,31 @@ export const WorkerRunInputSchema = z
   })
   .strict();
 
-export const WorkflowArtifactSchema = z
-  .object({
-    path: z.string().min(1),
-    kind: z.enum(["durable", "raw", "transient"]),
-    verified: z.boolean()
-  })
-  .strict();
+const ArtifactPathSchema = z.string().min(1);
+
+export const WorkflowArtifactSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      path: ArtifactPathSchema,
+      kind: z.literal("durable"),
+      verified: z.boolean()
+    })
+    .strict(),
+  z
+    .object({
+      path: ArtifactPathSchema,
+      kind: z.literal("raw"),
+      verified: z.literal(false)
+    })
+    .strict(),
+  z
+    .object({
+      path: ArtifactPathSchema,
+      kind: z.literal("transient"),
+      verified: z.boolean()
+    })
+    .strict()
+]);
 
 export const WorkerEventSchema = z
   .object({
@@ -87,16 +105,27 @@ export const WorkerErrorSchema = z
   })
   .strict();
 
-export const WorkerRunResultSchema = z
-  .object({
-    runId: z.string().min(1),
-    status: z.enum(["success", "failure", "blocked"]),
-    summary: z.string(),
-    artifacts: z.array(WorkflowArtifactSchema),
-    events: z.array(WorkerEventSchema),
+const WorkerRunResultBaseSchema = z.object({
+  runId: z.string().min(1),
+  summary: z.string(),
+  artifacts: z.array(WorkflowArtifactSchema),
+  events: z.array(WorkerEventSchema)
+});
+
+export const WorkerRunResultSchema = z.discriminatedUnion("status", [
+  WorkerRunResultBaseSchema.extend({
+    status: z.literal("success"),
+    errors: z.array(WorkerErrorSchema).length(0)
+  }).strict(),
+  WorkerRunResultBaseSchema.extend({
+    status: z.literal("failure"),
     errors: z.array(WorkerErrorSchema)
-  })
-  .strict();
+  }).strict(),
+  WorkerRunResultBaseSchema.extend({
+    status: z.literal("blocked"),
+    errors: z.array(WorkerErrorSchema)
+  }).strict()
+]);
 
 export type WorkerContextPolicy = z.infer<typeof WorkerContextPolicySchema>;
 export type WorkerToolPolicy = z.infer<typeof WorkerToolPolicySchema>;

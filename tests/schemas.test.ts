@@ -4,6 +4,7 @@ import {
   WorkerHandoffSchema,
   WorkerProfileSchema,
   WorkerRunResultSchema,
+  WorkflowArtifactSchema,
   type WorkerProfile
 } from "../src/index.js";
 
@@ -15,6 +16,17 @@ const permissions = {
   mayPush: false,
   mayCreatePullRequest: false,
   mayResolveReviewThread: false
+};
+
+const event = {
+  type: "worker.started",
+  message: "Worker started.",
+  timestamp: "2026-06-23T00:00:00.000Z"
+};
+
+const error = {
+  code: "missing_context",
+  message: "Required issue context missing."
 };
 
 describe("worker contract schemas", () => {
@@ -59,8 +71,34 @@ describe("worker contract schemas", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts worker run results with artifacts, events, and errors", () => {
+  it("accepts success results with empty errors", () => {
     const result = WorkerRunResultSchema.parse({
+      runId: "run-1",
+      status: "success",
+      summary: "Worker produced verified output.",
+      artifacts: [],
+      events: [event],
+      errors: []
+    });
+
+    expect(result.status).toBe("success");
+  });
+
+  it("rejects success results with non-empty errors", () => {
+    const result = WorkerRunResultSchema.safeParse({
+      runId: "run-1",
+      status: "success",
+      summary: "Worker produced verified output.",
+      artifacts: [],
+      events: [event],
+      errors: [error]
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts failure and blocked worker run results with errors", () => {
+    const failure = WorkerRunResultSchema.parse({
       runId: "run-1",
       status: "failure",
       summary: "Worker stopped before durable output.",
@@ -71,21 +109,53 @@ describe("worker contract schemas", () => {
           verified: true
         }
       ],
-      events: [
-        {
-          type: "worker.started",
-          message: "Worker started.",
-          timestamp: "2026-06-23T00:00:00.000Z"
-        }
-      ],
-      errors: [
-        {
-          code: "missing_context",
-          message: "Required issue context missing."
-        }
-      ]
+      events: [event],
+      errors: [error]
+    });
+    const blocked = WorkerRunResultSchema.parse({
+      runId: "run-2",
+      status: "blocked",
+      summary: "Worker needs missing context.",
+      artifacts: [],
+      events: [event],
+      errors: [error]
     });
 
-    expect(result.artifacts[0]?.verified).toBe(true);
+    expect(failure.artifacts[0]?.verified).toBe(true);
+    expect(blocked.errors[0]?.code).toBe("missing_context");
+  });
+
+  it("enforces raw artifact hygiene while allowing durable verification states", () => {
+    expect(
+      WorkflowArtifactSchema.parse({
+        path: ".ai-workflow/runs/run-1/raw.md",
+        kind: "raw",
+        verified: false
+      }).verified
+    ).toBe(false);
+
+    expect(
+      WorkflowArtifactSchema.safeParse({
+        path: ".ai-workflow/runs/run-1/raw.md",
+        kind: "raw",
+        verified: true
+      }).success
+    ).toBe(false);
+
+    expect(
+      WorkflowArtifactSchema.parse({
+        path: "docs/ai/verified-reports/run-1.md",
+        kind: "durable",
+        verified: true
+      }).verified
+    ).toBe(true);
+
+    expect(
+      WorkflowArtifactSchema.parse({
+        path: "docs/ai/verified-reports/run-1.md",
+        kind: "durable",
+        verified: false
+      }).verified
+    ).toBe(false);
   });
 });
