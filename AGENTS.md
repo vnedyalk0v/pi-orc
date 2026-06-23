@@ -184,13 +184,15 @@ warning.
 - Do not use `gh pr create --fill`; write controlled PR bodies explicitly.
 - PRs must target `main` unless the user specifies another base.
 - PR title should match the main commit subject.
+- Assign opened PRs to `vnedyalk0v` unless the user specifies another
+  assignee.
 - PR body must include summary, related issue, what changed, why it was needed,
   verification, risk, rollback plan, and scope checklist.
 - Do not open broad PRs that combine unrelated issues.
 
 ## AI Review Request Rules
 
-After opening a non-draft PR, wait up to 5 minutes for the AI coding review
+After opening a non-draft PR, wait up to 10 minutes for the AI coding review
 agent to either post review comments or mark the PR as OK.
 
 If review comments appear:
@@ -202,8 +204,9 @@ If review comments appear:
 5. Push the fix.
 6. Request a fresh review by posting a top-level PR comment:
    `@codex review`
+7. Wait up to 10 minutes for the fresh AI review response.
 
-If no AI review appears within 5 minutes, report that no review appeared yet.
+If no AI review appears within 10 minutes, report that no review appeared yet.
 Do not merge only because the AI review has not appeared.
 
 ## PR Issue and Project Linking Rules
@@ -212,6 +215,9 @@ Do not merge only because the AI review has not appeared.
   close the issue.
 - After creating the PR, verify that GitHub reports the issue as a closing
   issue.
+- Assign the opened PR to the existing `pi-orc` GitHub Project.
+- Verify the opened PR is assigned to the expected assignee and linked to the
+  existing `pi-orc` GitHub Project.
 - Do not manually close the issue when opening the PR.
 - Do not set the Project item to `Done` when opening the PR.
 - Keep the issue Project item as `In Progress` while the PR is open, unless the
@@ -220,8 +226,8 @@ Do not merge only because the AI review has not appeared.
   PR is opened.
 - Do not create an `In Review` status option. If `In Review` does not exist,
   keep `In Progress` and report that no `In Review` option exists.
-- The GitHub Project tracks the issue as the unit of work. Do not add the PR as
-  a separate Project item unless the selected issue explicitly requires it.
+- Keep issue tracking cleanup rules tied to the issue item, even when the PR is
+  also assigned to the GitHub Project.
 - Confirm `Priority`, `Type`, `Area`, and `Source` remain set on the issue
   Project item.
 
