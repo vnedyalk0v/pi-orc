@@ -57,6 +57,13 @@ export const WorkerHandoffSchema = z
   })
   .strict();
 
+export const WorkerRunInputSchema = z
+  .object({
+    profile: WorkerProfileSchema,
+    handoff: WorkerHandoffSchema
+  })
+  .strict();
+
 export const WorkflowArtifactSchema = z
   .object({
     path: z.string().min(1),
@@ -97,6 +104,7 @@ export type WorkerPermissionSet = z.infer<typeof WorkerPermissionSetSchema>;
 export type WorkerOutputContract = z.infer<typeof WorkerOutputContractSchema>;
 export type WorkerProfile = z.infer<typeof WorkerProfileSchema>;
 export type WorkerHandoff = z.infer<typeof WorkerHandoffSchema>;
+export type WorkerRunInput = z.infer<typeof WorkerRunInputSchema>;
 export type WorkflowArtifact = z.infer<typeof WorkflowArtifactSchema>;
 export type WorkerRunArtifact = WorkflowArtifact;
 export type WorkerRunEvent = z.infer<typeof WorkerEventSchema>;
