@@ -207,13 +207,13 @@ describe("new project intake schema", () => {
   it("accepts valid GitHub and git identifiers", () => {
     const intake = NewProjectIntakeSchema.parse({
       projectName: "Example App",
-      repositoryOwner: "vnedyalk0v",
+      repositoryOwner: "a".repeat(39),
       repositoryName: "a".repeat(100),
       defaultBranch: "feature/bootstrap",
       githubProjectOwner: "example-org"
     });
 
-    expect(intake.repositoryOwner).toBe("vnedyalk0v");
+    expect(intake.repositoryOwner).toHaveLength(39);
     expect(intake.repositoryName).toHaveLength(100);
     expect(intake.githubProjectOwner).toBe("example-org");
     expect(intake.defaultBranch).toBe("feature/bootstrap");
@@ -228,8 +228,13 @@ describe("new project intake schema", () => {
 
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryOwner: "bad owner" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryOwner: "bad/owner" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryOwner: "a".repeat(40) }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, githubProjectOwner: "a".repeat(40) }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryName: "bad/repo" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryName: "a".repeat(101) }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryName: "foo.git" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryName: "foo.wiki" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, repositoryName: "foo.GIT" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature bad" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature..bad" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "/feature" }).success).toBe(false);
