@@ -193,7 +193,13 @@ warning.
 ## AI Review Request Rules
 
 After opening a non-draft PR, wait up to 10 minutes for the AI coding review
-agent to either post review comments or mark the PR as OK.
+agent to post review comments, open review threads, or mark the PR as OK.
+
+A thumbs-up reaction from `chatgpt-codex-connector[bot]` on the PR is an OK
+review signal only if it was created after the latest pushed commit or latest
+`@codex review` request, whichever is newer. If that fresh reaction is present,
+CI is green, the PR is mergeable, and there are no unresolved review threads, do
+not keep waiting only because no formal review object exists.
 
 If review comments appear:
 
@@ -206,7 +212,8 @@ If review comments appear:
    `@codex review`
 7. Wait up to 10 minutes for the fresh AI review response.
 
-If no AI review appears within 10 minutes, report that no review appeared yet.
+If no AI review comments, review threads, or OK reaction appear within 10
+minutes, report that no review appeared yet.
 Do not merge only because the AI review has not appeared.
 
 ## PR Issue and Project Linking Rules
@@ -240,7 +247,7 @@ Before a PR is considered ready:
 - required local verification passed
 - diff contains only selected issue scope
 - CI is passing
-- review-bot comments were read and verified
+- review-bot comments, review threads, and PR reactions were read and verified
 - unresolved review threads are either fixed or explicitly rejected with reason
 
 ## Review-Bot Comment Handling
