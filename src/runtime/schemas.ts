@@ -46,6 +46,7 @@ const GitBranchNameSchema = z
   .refine((name) => !name.endsWith("/"))
   .refine((name) => !name.endsWith("."))
   .refine((name) => !name.endsWith(".lock"))
+  .refine((name) => Buffer.byteLength(`refs/heads/${name}.lock`, "utf8") <= 4096)
   .refine((name) => name.split("/").every((part) => Buffer.byteLength(part, "utf8") <= 250 && !part.startsWith(".") && !part.endsWith(".lock")));
 
 const NewProjectIntakeBaseSchema = z
