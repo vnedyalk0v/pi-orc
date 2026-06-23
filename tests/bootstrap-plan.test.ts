@@ -27,8 +27,8 @@ describe("bootstrap plan generation", () => {
       expect.arrayContaining(["create-repository", "create-project", "create-label", "create-issue"])
     );
     expect(plan.gitActions.map((action) => action.kind)).toEqual(["init", "add-remote", "stage", "commit", "push"]);
-    expect(plan.gitActions[0]?.command).toBe("git init -b main");
-    expect(plan.gitActions[1]?.command).toBe("git remote add origin git@github.com:vnedyalk0v/example-typescript-app.git");
+    expect(plan.gitActions[0]?.command).toBe("git init -b 'main'");
+    expect(plan.gitActions[1]?.command).toBe("git remote add origin 'git@github.com:vnedyalk0v/example-typescript-app.git'");
     expect(plan.gitActions[2]?.command).toContain("AGENTS.md");
     expect(plan.gitActions[2]?.command).toContain(".gitignore");
     expect(plan.policyGates.map((gate) => gate.action)).toEqual(
@@ -59,5 +59,22 @@ describe("bootstrap plan generation", () => {
 
     expect(dryRun.mutates).toBe(false);
     expect(dryRun.markdown).toContain("Repository: `vnedyalk0v/example-typescript-app`");
+  });
+
+  it("quotes intake values in rendered git commands", () => {
+    const plan = generateBootstrapPlan({
+      ...typescriptIntake,
+      repositoryName: "tricky'repo",
+      defaultBranch: "feature&x"
+    });
+
+    expect(plan.gitActions.map((action) => action.command)).toEqual(
+      expect.arrayContaining([
+        "git init -b 'feature&x'",
+        "git remote add origin 'git@github.com:vnedyalk0v/tricky'\\''repo.git'",
+        "git commit -m 'chore: bootstrap tricky'\\''repo'",
+        "git push -u origin 'feature&x'"
+      ])
+    );
   });
 });

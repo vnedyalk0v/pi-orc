@@ -217,27 +217,27 @@ function gitPlanActions(
   return [
     {
       kind: "init",
-      command: `git init -b ${intake.defaultBranch}`,
+      command: `git init -b ${shellQuote(intake.defaultBranch)}`,
       requiredPolicyAction: "run-local-command"
     },
     {
       kind: "add-remote",
-      command: `git remote add origin git@github.com:${repository}.git`,
+      command: `git remote add origin ${shellQuote(`git@github.com:${repository}.git`)}`,
       requiredPolicyAction: "run-local-command"
     },
     {
       kind: "stage",
-      command: `git add ${files.map((file) => file.path).join(" ")}`,
+      command: `git add ${files.map((file) => shellQuote(file.path)).join(" ")}`,
       requiredPolicyAction: "commit"
     },
     {
       kind: "commit",
-      command: `git commit -m "chore: bootstrap ${intake.repositoryName}"`,
+      command: `git commit -m ${shellQuote(`chore: bootstrap ${intake.repositoryName}`)}`,
       requiredPolicyAction: "commit"
     },
     {
       kind: "push",
-      command: `git push -u origin ${intake.defaultBranch}`,
+      command: `git push -u origin ${shellQuote(intake.defaultBranch)}`,
       requiredPolicyAction: "push"
     }
   ];
@@ -245,4 +245,8 @@ function gitPlanActions(
 
 function targetPath(template: string): string {
   return template === "gitignore" ? ".gitignore" : template;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
