@@ -19,7 +19,7 @@ export interface BootstrapGitHubAction {
 }
 
 export interface BootstrapGitAction {
-  kind: "commit" | "push";
+  kind: "stage" | "commit" | "push";
   command: string;
   requiredPolicyAction: "commit" | "push";
 }
@@ -81,7 +81,7 @@ export function generateBootstrapPlan(input: unknown): BootstrapPlan {
   const repository = `${intake.repositoryOwner}/${intake.repositoryName}`;
   const files = fileActions(intake);
   const githubActions = githubPlanActions(intake, repository);
-  const gitActions = gitPlanActions(intake);
+  const gitActions = gitPlanActions(intake, files);
   const requiredActions = [
     ...files.map((file) => file.requiredPolicyAction),
     ...githubActions.map((githubAction) => githubAction.requiredPolicyAction),
@@ -205,12 +205,17 @@ function githubPlanActions(intake: NewProjectIntake, repository: string): Bootst
   return actions;
 }
 
-function gitPlanActions(intake: NewProjectIntake): BootstrapGitAction[] {
+function gitPlanActions(intake: NewProjectIntake, files: readonly BootstrapFileAction[]): BootstrapGitAction[] {
   if (!intake.pushInitialCommit) {
     return [];
   }
 
   return [
+    {
+      kind: "stage",
+      command: `git add ${files.map((file) => file.path).join(" ")}`,
+      requiredPolicyAction: "commit"
+    },
     {
       kind: "commit",
       command: `git commit -m "chore: bootstrap ${intake.repositoryName}"`,
