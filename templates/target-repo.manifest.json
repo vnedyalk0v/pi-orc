@@ -1,6 +1,9 @@
 {
   "version": 1,
   "root": "target-repo",
+  "exclude": [
+    ".gitignore"
+  ],
   "renames": {
     "gitignore": ".gitignore"
   }
