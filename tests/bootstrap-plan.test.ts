@@ -26,12 +26,15 @@ describe("bootstrap plan generation", () => {
     expect(plan.githubActions.map((action) => action.action.kind)).toEqual(
       expect.arrayContaining(["create-repository", "create-project", "create-label", "create-issue"])
     );
-    expect(plan.gitActions.map((action) => action.kind)).toEqual(["stage", "commit", "push"]);
-    expect(plan.gitActions[0]?.command).toContain("AGENTS.md");
-    expect(plan.gitActions[0]?.command).toContain(".gitignore");
+    expect(plan.gitActions.map((action) => action.kind)).toEqual(["init", "add-remote", "stage", "commit", "push"]);
+    expect(plan.gitActions[0]?.command).toBe("git init -b main");
+    expect(plan.gitActions[1]?.command).toBe("git remote add origin git@github.com:vnedyalk0v/example-typescript-app.git");
+    expect(plan.gitActions[2]?.command).toContain("AGENTS.md");
+    expect(plan.gitActions[2]?.command).toContain(".gitignore");
     expect(plan.policyGates.map((gate) => gate.action)).toEqual(
       expect.arrayContaining([
         "write-local-files",
+        "run-local-command",
         "create-github-repository",
         "create-github-project",
         "edit-github-repository-settings",

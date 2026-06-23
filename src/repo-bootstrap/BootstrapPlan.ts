@@ -19,9 +19,9 @@ export interface BootstrapGitHubAction {
 }
 
 export interface BootstrapGitAction {
-  kind: "stage" | "commit" | "push";
+  kind: "init" | "add-remote" | "stage" | "commit" | "push";
   command: string;
-  requiredPolicyAction: "commit" | "push";
+  requiredPolicyAction: "run-local-command" | "commit" | "push";
 }
 
 export interface BootstrapPolicyGate {
@@ -81,7 +81,7 @@ export function generateBootstrapPlan(input: unknown): BootstrapPlan {
   const repository = `${intake.repositoryOwner}/${intake.repositoryName}`;
   const files = fileActions(intake);
   const githubActions = githubPlanActions(intake, repository);
-  const gitActions = gitPlanActions(intake, files);
+  const gitActions = gitPlanActions(intake, files, repository);
   const requiredActions = [
     ...files.map((file) => file.requiredPolicyAction),
     ...githubActions.map((githubAction) => githubAction.requiredPolicyAction),
@@ -205,12 +205,26 @@ function githubPlanActions(intake: NewProjectIntake, repository: string): Bootst
   return actions;
 }
 
-function gitPlanActions(intake: NewProjectIntake, files: readonly BootstrapFileAction[]): BootstrapGitAction[] {
+function gitPlanActions(
+  intake: NewProjectIntake,
+  files: readonly BootstrapFileAction[],
+  repository: string
+): BootstrapGitAction[] {
   if (!intake.pushInitialCommit) {
     return [];
   }
 
   return [
+    {
+      kind: "init",
+      command: `git init -b ${intake.defaultBranch}`,
+      requiredPolicyAction: "run-local-command"
+    },
+    {
+      kind: "add-remote",
+      command: `git remote add origin git@github.com:${repository}.git`,
+      requiredPolicyAction: "run-local-command"
+    },
     {
       kind: "stage",
       command: `git add ${files.map((file) => file.path).join(" ")}`,
