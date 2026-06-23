@@ -1,6 +1,7 @@
-export interface WorkerProfile {
-  id: string;
-  name: string;
-  description?: string;
-  cleanContext: true;
-}
+export type {
+  WorkerContextPolicy,
+  WorkerOutputContract,
+  WorkerPermissionSet,
+  WorkerProfile,
+  WorkerToolPolicy
+} from "./schemas.js";
