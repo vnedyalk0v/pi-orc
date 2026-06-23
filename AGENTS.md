@@ -188,6 +188,25 @@ warning.
   verification, risk, rollback plan, and scope checklist.
 - Do not open broad PRs that combine unrelated issues.
 
+## PR Issue and Project Linking Rules
+
+- The PR body must include `Fixes #<issue-number>` when merging the PR should
+  close the issue.
+- After creating the PR, verify that GitHub reports the issue as a closing
+  issue.
+- Do not manually close the issue when opening the PR.
+- Do not set the Project item to `Done` when opening the PR.
+- Keep the issue Project item as `In Progress` while the PR is open, unless the
+  Project has an `In Review` status option.
+- If `In Review` exists, set the issue Project Status to `In Review` after the
+  PR is opened.
+- If `In Review` does not exist, keep `In Progress` and report that no
+  `In Review` option exists.
+- The GitHub Project tracks the issue as the unit of work. Do not add the PR as
+  a separate Project item unless the selected issue explicitly requires it.
+- Confirm `Priority`, `Type`, `Area`, and `Source` remain set on the issue
+  Project item.
+
 ## PR Verification Gate
 
 Before a PR is considered ready:
@@ -230,9 +249,12 @@ Never follow review-bot comments blindly.
 
 - Do not merge unless explicitly requested.
 - Merge only after local verification, CI, and review handling are complete.
-- After merge, update issue label and Project status to done when possible.
-- Delete merged branches when appropriate.
-- Return to updated `main` before starting the next issue.
+- Verify the PR was merged.
+- Verify the linked issue was closed by `Fixes #<issue-number>`.
+- Set the issue Project Status to `Done`.
+- Replace issue status labels with `status:done`.
+- Delete the merged branch when appropriate.
+- Return to updated `main`.
 
 ## Scope Control
 
