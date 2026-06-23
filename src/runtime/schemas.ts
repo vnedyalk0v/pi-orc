@@ -1,5 +1,47 @@
 import { z } from "zod";
 
+import { workflowModes } from "./WorkflowPolicy.js";
+
+export const ProjectRepositoryVisibilitySchema = z.enum(["public", "private", "internal"]);
+export const GitHubProjectOwnerTypeSchema = z.enum(["user", "organization"]);
+
+export const defaultNewProjectIntakeOptions = {
+  repositoryVisibility: "private",
+  description: "",
+  defaultBranch: "main",
+  githubProjectOwnerType: "user",
+  workflowMode: "assisted",
+  stackProfile: "generic",
+  verificationCommands: [],
+  createDocsSkeleton: true,
+  createGitHubProject: false,
+  pushInitialCommit: false
+} as const;
+
+const NewProjectIntakeBaseSchema = z
+  .object({
+    projectName: z.string().min(1),
+    repositoryOwner: z.string().min(1),
+    repositoryName: z.string().min(1),
+    repositoryVisibility: ProjectRepositoryVisibilitySchema.default(defaultNewProjectIntakeOptions.repositoryVisibility),
+    description: z.string().default(defaultNewProjectIntakeOptions.description),
+    defaultBranch: z.string().min(1).default(defaultNewProjectIntakeOptions.defaultBranch),
+    githubProjectOwnerType: GitHubProjectOwnerTypeSchema.default(defaultNewProjectIntakeOptions.githubProjectOwnerType),
+    githubProjectOwner: z.string().min(1).optional(),
+    workflowMode: z.enum(workflowModes).default(defaultNewProjectIntakeOptions.workflowMode),
+    stackProfile: z.string().min(1).default(defaultNewProjectIntakeOptions.stackProfile),
+    verificationCommands: z.array(z.string().min(1)).default(() => [...defaultNewProjectIntakeOptions.verificationCommands]),
+    createDocsSkeleton: z.boolean().default(defaultNewProjectIntakeOptions.createDocsSkeleton),
+    createGitHubProject: z.boolean().default(defaultNewProjectIntakeOptions.createGitHubProject),
+    pushInitialCommit: z.boolean().default(defaultNewProjectIntakeOptions.pushInitialCommit)
+  })
+  .strict();
+
+export const NewProjectIntakeSchema = NewProjectIntakeBaseSchema.transform((intake) => ({
+  ...intake,
+  githubProjectOwner: intake.githubProjectOwner ?? intake.repositoryOwner
+}));
+
 export const WorkerContextPolicySchema = z.enum([
   "project-intake-only",
   "docs-only",
@@ -128,6 +170,9 @@ export const WorkerRunResultSchema = z.discriminatedUnion("status", [
 ]);
 
 export type WorkerContextPolicy = z.infer<typeof WorkerContextPolicySchema>;
+export type ProjectRepositoryVisibility = z.infer<typeof ProjectRepositoryVisibilitySchema>;
+export type GitHubProjectOwnerType = z.infer<typeof GitHubProjectOwnerTypeSchema>;
+export type NewProjectIntake = z.infer<typeof NewProjectIntakeSchema>;
 export type WorkerToolPolicy = z.infer<typeof WorkerToolPolicySchema>;
 export type WorkerPermissionSet = z.infer<typeof WorkerPermissionSetSchema>;
 export type WorkerOutputContract = z.infer<typeof WorkerOutputContractSchema>;
