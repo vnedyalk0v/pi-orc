@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { z } from "zod";
 
 import { workflowModes } from "./WorkflowPolicy.js";
@@ -45,7 +46,7 @@ const GitBranchNameSchema = z
   .refine((name) => !name.endsWith("/"))
   .refine((name) => !name.endsWith("."))
   .refine((name) => !name.endsWith(".lock"))
-  .refine((name) => name.split("/").every((part) => part.length <= 250 && !part.startsWith(".") && !part.endsWith(".lock")));
+  .refine((name) => name.split("/").every((part) => Buffer.byteLength(part, "utf8") <= 250 && !part.startsWith(".") && !part.endsWith(".lock")));
 
 const NewProjectIntakeBaseSchema = z
   .object({
