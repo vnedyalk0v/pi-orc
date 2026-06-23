@@ -1,0 +1,42 @@
+name: Task
+description: Track planned implementation or maintenance work.
+title: "chore: "
+labels:
+  - "type:task"
+  - "status:ready"
+  - "source:manual"
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What needs to be done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this is needed
+      description: Why should this exist now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What must be true for this to be done?
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: What command or review will prove it?
+    validations:
+      required: true

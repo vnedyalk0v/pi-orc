@@ -1,0 +1,18 @@
+version: 1
+workflow:
+  mode: assisted
+  source_of_truth:
+    - github_issues
+    - pull_requests
+    - ci
+artifacts:
+  local_only:
+    - .ai-workflow/runs/
+    - .ai-workflow/cache/
+    - .ai-workflow/tmp/
+  verified:
+    - docs/ai/verified-reports/
+policy:
+  require_verification_before_commit: true
+  treat_ai_output_as_untrusted: true
+  verify_review_bot_comments: true

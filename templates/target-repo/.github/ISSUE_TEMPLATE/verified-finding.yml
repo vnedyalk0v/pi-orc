@@ -1,0 +1,43 @@
+name: Verified Finding
+description: Track a finding after independent verification.
+title: "fix: "
+labels:
+  - "type:finding"
+  - "status:ready"
+  - "source:verified"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use this template for raw AI output. Verify the finding first.
+
+  - type: textarea
+    id: finding
+    attributes:
+      label: Finding
+      description: What verified problem exists?
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Verification Evidence
+      description: Summarize the independent check and link durable evidence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What can go wrong if this is not fixed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+    validations:
+      required: true
