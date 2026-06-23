@@ -209,14 +209,14 @@ describe("new project intake schema", () => {
       projectName: "Example App",
       repositoryOwner: "a".repeat(39),
       repositoryName: "a".repeat(100),
-      defaultBranch: "feature/bootstrap",
+      defaultBranch: "a".repeat(250),
       githubProjectOwner: "example-org"
     });
 
     expect(intake.repositoryOwner).toHaveLength(39);
     expect(intake.repositoryName).toHaveLength(100);
     expect(intake.githubProjectOwner).toBe("example-org");
-    expect(intake.defaultBranch).toBe("feature/bootstrap");
+    expect(intake.defaultBranch).toHaveLength(250);
   });
 
   it("rejects invalid GitHub and git identifiers", () => {
@@ -249,6 +249,7 @@ describe("new project intake schema", () => {
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "release.lock/hotfix" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature/.hidden" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature/hotfix.lock" }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "a".repeat(251) }).success).toBe(false);
   });
 
   it("rejects unknown fields and unsupported enum values", () => {
