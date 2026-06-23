@@ -3,6 +3,7 @@ export const packageInfo = {
   description: "Pi Orchestrator for verified AI development workflows."
 } as const;
 
+export { GhGitHubAdapter } from "./github/index.js";
 export {
   decideWorkflowAction,
   defaultWorkflowPolicies,
@@ -43,3 +44,20 @@ export type {
   WorkflowPolicyDecisionStatus,
   WorkerRuntime
 } from "./runtime/index.js";
+export type {
+  AddProjectItemAction,
+  CreateIssueAction,
+  CreateLabelAction,
+  CreateProjectAction,
+  CreateRepositoryAction,
+  GitHubAction,
+  GitHubActionResult,
+  GitHubAdapter,
+  GitHubAuthCheck,
+  GitHubCommandOutput,
+  GitHubCommandPlan,
+  GitHubCommandRunner,
+  GitHubExecuteOptions,
+  GitHubRepositoryVisibility,
+  LinkProjectAction
+} from "./github/index.js";
