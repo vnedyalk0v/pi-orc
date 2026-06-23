@@ -24,17 +24,11 @@
   },
   "files": [
     "dist/",
-    "skills/",
-    "prompts/",
     "templates/",
     "README.md",
     "docs/"
   ],
-  "pi": {
-    "extensions": ["./dist/extensions"],
-    "skills": ["./skills"],
-    "prompts": ["./prompts"]
-  },
+  "pi": {},
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "0.79.x"
   },
