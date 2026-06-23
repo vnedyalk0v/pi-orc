@@ -96,7 +96,7 @@ const requiredPolicyActions: Record<GitHubAction["kind"], WorkflowActionCategory
   "create-repository": "create-github-repository",
   "create-label": "edit-github-repository-settings",
   "create-project": "create-github-project",
-  "link-project": "add-issue-to-project",
+  "link-project": "edit-github-repository-settings",
   "create-issue": "create-github-issue",
   "add-project-item": "add-issue-to-project"
 };

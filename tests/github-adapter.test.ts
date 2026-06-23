@@ -80,7 +80,7 @@ describe("GhGitHubAdapter", () => {
       })
     ).toMatchObject({
       args: ["project", "link", "1", "--owner", "owner", "--repo", "repo"],
-      requiredPolicyAction: "add-issue-to-project"
+      requiredPolicyAction: "edit-github-repository-settings"
     });
 
     expect(
