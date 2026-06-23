@@ -35,7 +35,8 @@ const GitBranchNameSchema = z
   .refine((name) => !name.startsWith("-"))
   .refine((name) => !name.endsWith("/"))
   .refine((name) => !name.endsWith("."))
-  .refine((name) => !name.endsWith(".lock"));
+  .refine((name) => !name.endsWith(".lock"))
+  .refine((name) => name.split("/").every((part) => !part.startsWith(".") && !part.endsWith(".lock")));
 
 const NewProjectIntakeBaseSchema = z
   .object({
