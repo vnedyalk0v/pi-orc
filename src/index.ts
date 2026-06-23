@@ -4,6 +4,7 @@ export const packageInfo = {
 } as const;
 
 export { GhGitHubAdapter } from "./github/index.js";
+export { createBootstrapPlanDryRun, generateBootstrapPlan, renderBootstrapPlanMarkdown } from "./repo-bootstrap/index.js";
 export {
   decideWorkflowAction,
   defaultNewProjectIntakeOptions,
@@ -51,6 +52,15 @@ export type {
   WorkflowPolicyDecisionStatus,
   WorkerRuntime
 } from "./runtime/index.js";
+export type {
+  BootstrapDirectoryAction,
+  BootstrapFileAction,
+  BootstrapGitAction,
+  BootstrapGitHubAction,
+  BootstrapPlan,
+  BootstrapPlanDryRun,
+  BootstrapPolicyGate
+} from "./repo-bootstrap/index.js";
 export type {
   AddProjectItemAction,
   CreateIssueAction,
