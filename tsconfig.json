@@ -5,6 +5,7 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "verbatimModuleSyntax": true,
+    "types": ["node"],
     "declaration": true,
     "rootDir": "src",
     "outDir": "dist"
