@@ -1,0 +1,54 @@
+{
+  "name": "pi-orc",
+  "version": "0.1.0",
+  "description": "Pi Orchestrator for verified AI development workflows.",
+  "type": "module",
+  "private": false,
+  "keywords": [
+    "pi-package",
+    "pi",
+    "ai-workflow",
+    "github-automation",
+    "verified-ai-development"
+  ],
+  "bin": {
+    "pi-orc": "./dist/cli/pi-orc.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "skills/",
+    "prompts/",
+    "templates/",
+    "README.md",
+    "docs/"
+  ],
+  "pi": {
+    "extensions": ["./dist/extensions"],
+    "skills": ["./skills"],
+    "prompts": ["./prompts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "0.79.x"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.79.10",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
+    "zod": "^4.4.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}
