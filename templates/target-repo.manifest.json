@@ -6,5 +6,42 @@
   ],
   "renames": {
     "gitignore": ".gitignore"
-  }
+  },
+  "labels": [
+    {
+      "name": "type:task",
+      "color": "1d76db",
+      "description": "Planned implementation or maintenance work"
+    },
+    {
+      "name": "type:bug",
+      "color": "d73a4a",
+      "description": "Reproducible defect"
+    },
+    {
+      "name": "type:finding",
+      "color": "fbca04",
+      "description": "Independently verified finding"
+    },
+    {
+      "name": "type:docs",
+      "color": "0075ca",
+      "description": "Documentation work"
+    },
+    {
+      "name": "status:ready",
+      "color": "0e8a16",
+      "description": "Ready to implement"
+    },
+    {
+      "name": "source:manual",
+      "color": "ededed",
+      "description": "Created manually"
+    },
+    {
+      "name": "source:verified",
+      "color": "5319e7",
+      "description": "Created from verified evidence"
+    }
+  ]
 }
