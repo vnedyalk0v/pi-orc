@@ -37,6 +37,8 @@ const GitBranchNameSchema = z
   .refine((name) => !name.includes("//"))
   .refine((name) => !name.includes("@{"))
   .refine((name) => name !== "HEAD")
+  .refine((name) => !name.startsWith("refs/"))
+  .refine((name) => !/^[a-fA-F0-9]{40}$/.test(name))
   .refine((name) => !name.startsWith("/"))
   .refine((name) => !name.startsWith("-"))
   .refine((name) => !name.endsWith("/"))
