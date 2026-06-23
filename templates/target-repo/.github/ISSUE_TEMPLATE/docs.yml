@@ -1,0 +1,37 @@
+name: Docs
+description: Request project documentation changes.
+title: "docs: "
+labels:
+  - "type:docs"
+  - "status:ready"
+  - "source:manual"
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What documentation should change?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc
+    attributes:
+      label: Document Area
+      options:
+        - README
+        - PRD
+        - MVP
+        - Architecture
+        - ADR
+        - Implementation plan
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+    validations:
+      required: true
