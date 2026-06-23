@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createBootstrapPlanDryRun, generateBootstrapPlan, renderBootstrapPlanMarkdown } from "../src/index.js";
 
-const typescriptIntake = {
-  projectName: "Example TypeScript App",
-  repositoryOwner: "vnedyalk0v",
-  repositoryName: "example-typescript-app",
-  repositoryVisibility: "private",
-  description: "Example bootstrap target",
-  workflowMode: "assisted",
-  stackProfile: "typescript",
-  verificationCommands: ["npm run typecheck", "npm test"],
-  createGitHubProject: true,
-  pushInitialCommit: true
-};
+const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "new-project");
+const fixtureNames = [
+  "personal-project",
+  "organization-project",
+  "typescript-project",
+  "unknown-stack-project"
+] as const;
+const fixtures = Object.fromEntries(fixtureNames.map((name) => [name, readFixture(name)]));
+const typescriptIntake = fixtures["typescript-project"];
 
 describe("bootstrap plan generation", () => {
   it("generates a dry-run bootstrap plan from TypeScript intake", () => {
@@ -80,4 +80,44 @@ describe("bootstrap plan generation", () => {
       ])
     );
   });
+
+  it.each(fixtureNames)("generates a non-mutating dry-run plan for %s", (fixtureName) => {
+    const dryRun = createBootstrapPlanDryRun(fixtures[fixtureName]);
+    const filePaths = dryRun.plan.files.map((file) => file.path);
+    const githubActionKinds = dryRun.plan.githubActions.map((action) => action.action.kind);
+    const policyGates = dryRun.plan.policyGates.map((gate) => gate.action);
+
+    expect(dryRun.mutates).toBe(false);
+    expect(filePaths).toEqual(
+      expect.arrayContaining(["AGENTS.md", "README.md", ".ai-workflow/config.yml", ".github/pull_request_template.md"])
+    );
+    expect(githubActionKinds).toEqual(expect.arrayContaining(["create-repository", "create-label", "create-issue"]));
+    expect(policyGates).toEqual(
+      expect.arrayContaining([
+        "write-local-files",
+        "create-github-repository",
+        "edit-github-repository-settings",
+        "create-github-issue"
+      ])
+    );
+    expect(dryRun.markdown).toContain("## Files");
+    expect(dryRun.markdown).toContain("## GitHub Actions");
+    expect(dryRun.markdown).toContain("## Policy Gates");
+  });
+
+  it("plans GitHub Projects for personal and organization fixtures", () => {
+    const personalProject = generateBootstrapPlan(fixtures["personal-project"]).githubActions.find(
+      (action) => action.action.kind === "create-project"
+    )?.action;
+    const organizationProject = generateBootstrapPlan(fixtures["organization-project"]).githubActions.find(
+      (action) => action.action.kind === "create-project"
+    )?.action;
+
+    expect(personalProject).toMatchObject({ kind: "create-project", owner: "vnedyalk0v" });
+    expect(organizationProject).toMatchObject({ kind: "create-project", owner: "example-org" });
+  });
 });
+
+function readFixture(name: (typeof fixtureNames)[number]): unknown {
+  return JSON.parse(readFileSync(join(fixtureDir, `${name}.json`), "utf8")) as unknown;
+}

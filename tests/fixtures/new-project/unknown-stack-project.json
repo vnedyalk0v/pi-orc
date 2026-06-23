@@ -1,0 +1,16 @@
+{
+  "projectName": "Example Unknown Stack App",
+  "repositoryOwner": "vnedyalk0v",
+  "repositoryName": "example-unknown-stack-app",
+  "repositoryVisibility": "private",
+  "description": "Unknown stack bootstrap target",
+  "defaultBranch": "main",
+  "githubProjectOwnerType": "user",
+  "githubProjectOwner": "vnedyalk0v",
+  "workflowMode": "manual",
+  "stackProfile": "unknown",
+  "verificationCommands": [],
+  "createDocsSkeleton": true,
+  "createGitHubProject": false,
+  "pushInitialCommit": false
+}
