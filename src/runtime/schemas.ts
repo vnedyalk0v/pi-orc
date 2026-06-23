@@ -22,6 +22,7 @@ const GitHubOwnerNameSchema = z.string().regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$
 const GitHubRepositoryNameSchema = z
   .string()
   .min(1)
+  .max(100)
   .regex(/^[A-Za-z0-9._-]+$/)
   .refine((name) => name !== "." && name !== "..");
 const GitBranchNameSchema = z
