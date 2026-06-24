@@ -209,21 +209,21 @@ describe("new project intake schema", () => {
       projectName: "Example App",
       repositoryOwner: "a".repeat(39),
       repositoryName: "a".repeat(100),
-      defaultBranch: "a".repeat(250),
+      defaultBranch: "a".repeat(244),
       githubProjectOwner: "example-org"
     });
 
     expect(intake.repositoryOwner).toHaveLength(39);
     expect(intake.repositoryName).toHaveLength(100);
     expect(intake.githubProjectOwner).toBe("example-org");
-    expect(intake.defaultBranch).toHaveLength(250);
+    expect(intake.defaultBranch).toHaveLength(244);
 
     expect(
       NewProjectIntakeSchema.safeParse({
         projectName: "Example App",
         repositoryOwner: "vnedyalk0v",
         repositoryName: "example-app",
-        defaultBranch: "\u{1F600}".repeat(62)
+        defaultBranch: "\u{1F600}".repeat(61)
       }).success
     ).toBe(true);
 
@@ -241,7 +241,7 @@ describe("new project intake schema", () => {
         projectName: "Example App",
         repositoryOwner: "vnedyalk0v",
         repositoryName: "example-app",
-        defaultBranch: `${"a/".repeat(1783)}a`
+        defaultBranch: `${"a/".repeat(121)}aa`
       }).success
     ).toBe(true);
   });
@@ -277,9 +277,10 @@ describe("new project intake schema", () => {
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "release.lock/hotfix" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature/.hidden" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature/hotfix.lock" }).success).toBe(false);
-    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "a".repeat(251) }).success).toBe(false);
-    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "\u{1F600}".repeat(63) }).success).toBe(false);
-    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(1784)}a` }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "a".repeat(245) }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "\u{1F600}".repeat(62) }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(122)}a` }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(1783)}a` }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(2039)}a` }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(2040)}a` }).success).toBe(false);
   });
