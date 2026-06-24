@@ -229,6 +229,7 @@ Rollback:
 gh api repos/vnedyalk0v/pi-orc/rulesets
 gh api --method DELETE repos/vnedyalk0v/pi-orc/rulesets/<ruleset-id>
 gh api repos/vnedyalk0v/pi-orc/rules/branches/main
+gh api --method DELETE repos/vnedyalk0v/pi-orc/branches/main/protection
 ```
 
 ## Safety Decision
@@ -245,7 +246,7 @@ settings, affects merge policy, and may block direct pushes to `main`.
 - No repository ruleset was created.
 - No repository setting was changed.
 - No source code was changed.
-- No PR was created.
+- No PR existed when this report was first prepared.
 - No merge was performed.
 - No force push was performed.
 - No admin bypass was used.
