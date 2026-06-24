@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { runGhCommandForTest } from "../src/github/GitHubAdapter.js";
 import { GhGitHubAdapter } from "../src/index.js";
 import type { GitHubCommandRunner } from "../src/index.js";
 
@@ -212,5 +213,28 @@ describe("GhGitHubAdapter", () => {
         stderr: "failed"
       }
     });
+  });
+
+  it("bounds default runner execution time", async () => {
+    await expect(
+      runGhCommandForTest(["-e", "setTimeout(() => {}, 5000)"], {
+        command: process.execPath,
+        timeoutMs: 20
+      })
+    ).resolves.toMatchObject({
+      exitCode: 1,
+      stderr: "gh command timed out"
+    });
+  });
+
+  it("caps default runner stderr output", async () => {
+    const result = await runGhCommandForTest(["-e", "process.stderr.write('x'.repeat(20))"], {
+      command: process.execPath,
+      maxOutputBytes: 5
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("gh stderr exceeded 5 byte output limit");
+    expect(result.stderr).toMatch(/^x{5}\n/);
   });
 });
