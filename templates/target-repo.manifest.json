@@ -34,6 +34,21 @@
       "description": "Ready to implement"
     },
     {
+      "name": "status:in-progress",
+      "color": "fbca04",
+      "description": "Work in progress"
+    },
+    {
+      "name": "status:blocked",
+      "color": "b60205",
+      "description": "Blocked by dependency or decision"
+    },
+    {
+      "name": "status:done",
+      "color": "8250df",
+      "description": "Work is completed"
+    },
+    {
       "name": "source:manual",
       "color": "ededed",
       "description": "Created manually"

@@ -72,6 +72,9 @@ const targetRepoLabels = [
   ["type:finding", "fbca04", "Independently verified finding"],
   ["type:docs", "0075ca", "Documentation work"],
   ["status:ready", "0e8a16", "Ready to implement"],
+  ["status:in-progress", "fbca04", "Work in progress"],
+  ["status:blocked", "b60205", "Blocked by dependency or decision"],
+  ["status:done", "8250df", "Work is completed"],
   ["source:manual", "ededed", "Created manually"],
   ["source:verified", "5319e7", "Created from verified evidence"]
 ] as const;
