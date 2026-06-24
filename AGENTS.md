@@ -259,14 +259,26 @@ When `improve` produces findings or plans that may become GitHub issues:
 
 ## AI Review Request Rules
 
-After opening a non-draft PR, wait up to 10 minutes for the AI coding review
-agent to post review comments, open review threads, or mark the PR as OK.
+After opening a non-draft PR, wait up to 3 minutes for a fresh PR reaction from
+`chatgpt-codex-connector[bot]`:
+
+- `eyes` means the AI review started.
+- `+1` means the AI review found no suggestions.
+
+Fresh means the reaction was created after the latest pushed commit or latest
+`@codex review` request, whichever is newer.
+
+If no fresh `eyes` or `+1` reaction appears within 3 minutes, treat the AI review
+as not triggered. Do not merge the PR. Leave it open for manual merge by
+`vnedyalk0v` and report the missing AI trigger signal.
+
+If a fresh `eyes` reaction appears, wait up to 10 minutes for the AI coding
+review agent to post review comments, open review threads, or mark the PR as OK.
 
 A thumbs-up reaction from `chatgpt-codex-connector[bot]` on the PR is an OK
-review signal only if it was created after the latest pushed commit or latest
-`@codex review` request, whichever is newer. If that fresh reaction is present,
-CI is green, the PR is mergeable, and there are no unresolved review threads, do
-not keep waiting only because no formal review object exists.
+review signal only if it is fresh. If that fresh reaction is present, CI is
+green, the PR is mergeable, and there are no unresolved review threads, do not
+keep waiting only because no formal review object exists.
 
 If review comments appear:
 
