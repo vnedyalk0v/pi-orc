@@ -3,6 +3,7 @@ description: Track planned implementation or maintenance work.
 title: "chore: "
 labels:
   - "type:chore"
+  - "status:ready"
   - "source:manual"
 body:
   - type: markdown

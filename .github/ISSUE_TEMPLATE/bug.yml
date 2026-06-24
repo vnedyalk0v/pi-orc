@@ -3,6 +3,7 @@ description: Report something broken in pi-orc.
 title: "fix: "
 labels:
   - "type:bug"
+  - "status:ready"
   - "source:manual"
 body:
   - type: markdown
