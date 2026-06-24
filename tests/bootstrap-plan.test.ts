@@ -29,6 +29,11 @@ describe("bootstrap plan generation", () => {
     expect(plan.githubActions.map((action) => action.action.kind)).toEqual(
       expect.arrayContaining(["create-repository", "create-project", "create-label", "create-issue"])
     );
+    expect(
+      plan.githubActions.flatMap(({ action }) =>
+        action.kind === "create-label" && action.name.startsWith("status:") ? [action.name] : []
+      )
+    ).toEqual(expect.arrayContaining(["status:ready", "status:in-progress", "status:blocked", "status:done"]));
     expect(plan.gitActions.map((action) => action.kind)).toEqual(["init", "add-remote", "stage", "commit", "push"]);
     expect(plan.gitActions[0]?.command).toBe("git init -b 'main'");
     expect(plan.gitActions[1]?.command).toBe("git remote add origin 'git@github.com:vnedyalk0v/example-typescript-app.git'");
