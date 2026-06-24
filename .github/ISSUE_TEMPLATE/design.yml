@@ -4,7 +4,7 @@ title: "docs(architecture): "
 labels:
   - "type:docs"
   - "area:docs"
-  - "status:needs-design"
+  - "status:ready"
   - "source:manual"
 body:
   - type: markdown

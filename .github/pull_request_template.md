@@ -4,7 +4,9 @@ Describe the change in 1–3 sentences.
 
 ## Related Issues
 
-Refs #
+Fixes #
+
+Use `Refs #` only for related non-closing issues.
 
 ## What Changed
 
@@ -22,8 +24,12 @@ Describe how the change was verified.
 
 ## Tests Run
 
+- [ ] `npm ci`
 - [ ] `npm run typecheck`
+- [ ] `npm run build`
 - [ ] `npm test`
+- [ ] `git diff --check`
+- [ ] `git diff --stat`
 - [ ] Other:
 
 ## Risk Level
