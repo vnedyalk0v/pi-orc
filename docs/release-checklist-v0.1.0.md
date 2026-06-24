@@ -30,15 +30,11 @@ Current readiness state:
 - package installability was verified in `docs/package-installability.md`
 - Pi resource discovery was verified in `docs/package-installability.md`
 - dogfood dry-run was verified in `docs/dogfood-new-project-dry-run.md`
-- license remains undecided
+- Apache-2.0 license metadata is present
 - branch protection is documented but not applied
 
 ## Required Blockers Before Release
 
-- Choose a license.
-- Add matching `LICENSE` or `LICENSE.md`.
-- Add `package.json` `license` metadata when a license is selected.
-- Update the README license section from `TBD`.
 - Decide whether v0.1.0 should be published to npm or only released on GitHub.
 - Re-run all verification commands after final release-readiness changes.
 - Confirm `main` branch protection or explicitly accept releasing without it.
@@ -78,6 +74,7 @@ Before release, `npm pack --dry-run --json` must show expected package contents:
 - `package/dist/cli/pi-orc.js`
 - `package/templates/`
 - `package/README.md`
+- `package/LICENSE`
 - `package/docs/`
 - `package/package.json`
 
@@ -142,17 +139,13 @@ Expected result:
 
 Current state:
 
-- README license section says `TBD`
-- no `license` field exists in `package.json`
-- no `LICENSE` or `LICENSE.md` file exists
-- `docs/license-decision.md` records the required owner decision
+- README license section says Apache-2.0
+- `package.json` declares `"license": "Apache-2.0"`
+- `LICENSE` contains the Apache License, Version 2.0 text
+- `docs/license-decision.md` records the owner decision
 
 Before release:
 
-- choose one license
-- add the license file
-- update README license text
-- add package license metadata when appropriate
 - re-run package verification
 
 ## CI/Branch Protection Checklist
@@ -239,6 +232,6 @@ Valid future outcomes:
 
 - GitHub release only, no npm publish
 - npm publish plus GitHub release
-- no release until license and branch-protection risks are resolved
+- no release until branch-protection risks are resolved
 
 Current task performed none of those release actions.

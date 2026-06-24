@@ -4,6 +4,7 @@
   "description": "Pi Orchestrator for verified AI development workflows.",
   "type": "module",
   "private": false,
+  "license": "Apache-2.0",
   "keywords": [
     "pi-package",
     "pi",
