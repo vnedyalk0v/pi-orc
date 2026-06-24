@@ -10,9 +10,9 @@ Use `Refs #` only for related non-closing issues.
 
 ## What Changed
 
-- 
-- 
-- 
+-
+-
+-
 
 ## Why This Change Was Needed
 
@@ -20,7 +20,10 @@ Explain the reason for the change.
 
 ## Verification
 
-Describe how the change was verified.
+List each verification command or check on its own Markdown line.
+Do not paste escaped newline sequences such as `\n`.
+
+- ...
 
 ## Tests Run
 

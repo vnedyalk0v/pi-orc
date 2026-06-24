@@ -255,6 +255,10 @@ When `improve` produces findings or plans that may become GitHub issues:
   assignee.
 - PR body must include summary, related issue, what changed, why it was needed,
   verification, risk, rollback plan, and scope checklist.
+- PR bodies must use real Markdown newlines, not literal `\n` escape
+  sequences.
+- After creating or editing a PR, verify `gh pr view <number> --json body`
+  output does not contain literal `\\n` sequences.
 - Do not open broad PRs that combine unrelated issues.
 
 ## AI Review Request Rules
