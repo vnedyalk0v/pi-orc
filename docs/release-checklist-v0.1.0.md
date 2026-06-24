@@ -31,20 +31,18 @@ Current readiness state:
 - Pi resource discovery was verified in `docs/package-installability.md`
 - dogfood dry-run was verified in `docs/dogfood-new-project-dry-run.md`
 - Apache-2.0 license metadata is present
-- branch protection is documented but not applied
+- branch protection ruleset `pi-orc main protection` is active
 
 ## Required Blockers Before Release
 
 - Decide whether v0.1.0 should be published to npm or only released on GitHub.
 - Re-run all verification commands after final release-readiness changes.
-- Confirm `main` branch protection or explicitly accept releasing without it.
+- Merge the final release-readiness audit and close Issue #70.
 
 ## Optional Warnings
 
 - `pi` manifest is intentionally `{}` because v0.1 ships no Pi resources.
 - No changelog exists yet; GitHub release notes may be enough for v0.1.
-- Branch protection plan exists in `docs/main-branch-protection-plan.md`, but
-  repository rulesets are currently empty.
 - Public npm package `pi-orc` does not exist yet, so first publish will claim the
   package name.
 
@@ -156,15 +154,21 @@ Current state:
 - CI job name: `verify`
 - latest `main` CI run: success
 - default branch: `main`
-- repository rulesets: none
-- classic branch protection: not enabled
+- repository ruleset: `pi-orc main protection`
+- ruleset enforcement: active
+- ruleset target: default branch
+- required status check: `verify`
+- strict required status check policy: enabled
+- review thread resolution: required
+- non-fast-forward pushes: blocked
+- branch deletion: blocked
+- bypass actors: none
 
 Before release:
 
 - confirm latest `main` CI is green
-- decide whether to apply `docs/main-branch-protection-plan.md`
-- if branch protection is applied, require check context `verify`
-- if branch protection is not applied, record that as an explicit accepted risk
+- confirm ruleset `pi-orc main protection` remains active
+- confirm required check context remains `verify`
 
 ## Future Release Steps
 
