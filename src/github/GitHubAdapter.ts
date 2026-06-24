@@ -104,6 +104,7 @@ const requiredPolicyActions: Record<GitHubAction["kind"], WorkflowActionCategory
 
 const defaultGhCommandTimeoutMs = 120_000;
 const defaultGhCommandMaxOutputBytes = 1_000_000;
+const defaultGhCommandForceKillAfterMs = 1_000;
 
 export class GhGitHubAdapter implements GitHubAdapter {
   constructor(private readonly run: GitHubCommandRunner = runGhCommand) {}
@@ -233,7 +234,9 @@ export function runGhCommandForTest(
     let stderr = "";
     let stdoutBytes = 0;
     let stderrBytes = 0;
+    let failedOutput: GitHubCommandOutput | undefined;
     let settled = false;
+    let forceKillTimeout: NodeJS.Timeout | undefined;
 
     const finish = (output: GitHubCommandOutput) => {
       if (settled) {
@@ -242,20 +245,28 @@ export function runGhCommandForTest(
 
       settled = true;
       clearTimeout(timeout);
+      clearTimeout(forceKillTimeout);
       resolve(output);
     };
 
-    const killWithError = (message: string) => {
-      child.kill();
-      finish({
+    const failWithError = (message: string) => {
+      if (failedOutput) {
+        return;
+      }
+
+      failedOutput = {
         exitCode: 1,
         stdout,
         stderr: stderr ? `${stderr}\n${message}` : message
-      });
+      };
+      child.kill();
+      forceKillTimeout = setTimeout(() => {
+        child.kill("SIGKILL");
+      }, defaultGhCommandForceKillAfterMs);
     };
 
     const timeout = setTimeout(() => {
-      killWithError("gh command timed out");
+      failWithError("gh command timed out");
     }, timeoutMs);
 
     child.stdout.setEncoding("utf8");
@@ -266,7 +277,7 @@ export function runGhCommandForTest(
       stdoutBytes = result.bytes;
 
       if (result.exceeded) {
-        killWithError(`gh stdout exceeded ${maxOutputBytes} byte output limit`);
+        failWithError(`gh stdout exceeded ${maxOutputBytes} byte output limit`);
       }
     });
     child.stderr.on("data", (chunk: string) => {
@@ -275,16 +286,28 @@ export function runGhCommandForTest(
       stderrBytes = result.bytes;
 
       if (result.exceeded) {
-        killWithError(`gh stderr exceeded ${maxOutputBytes} byte output limit`);
+        failWithError(`gh stderr exceeded ${maxOutputBytes} byte output limit`);
       }
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      if (failedOutput) {
+        finish(failedOutput);
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      clearTimeout(forceKillTimeout);
+      reject(error);
+    });
     child.on("close", (exitCode) => {
-      finish({
-        exitCode: exitCode ?? 1,
-        stdout,
-        stderr
-      });
+      finish(
+        failedOutput ?? {
+          exitCode: exitCode ?? 1,
+          stdout,
+          stderr
+        }
+      );
     });
   });
 }
