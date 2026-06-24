@@ -2,16 +2,16 @@
 
 ## Current State
 
-No license has been selected for `pi-orc`.
+`pi-orc` is licensed under Apache-2.0.
 
-- `README.md` says the license is `TBD`.
-- `package.json` does not declare a `license` field.
-- No `LICENSE` or `LICENSE.md` file exists.
-- `docs/package-installability.md` verifies package installability, but the publish-readiness state still depends on a project-owner license decision.
+- `README.md` links to `LICENSE`.
+- `package.json` declares `"license": "Apache-2.0"`.
+- `LICENSE` contains the Apache License, Version 2.0 text.
+- `docs/package-installability.md` verifies package installability.
 
-## Decision Required
+## Decision
 
-The project owner must choose the repository license before npm publish or GitHub release.
+The project owner selected Apache-2.0 on 2026-06-24.
 
 This document is not legal advice. License choice is a project-owner and legal decision.
 
@@ -43,18 +43,12 @@ Keeps rights reserved by default. Public visibility does not grant broad reuse r
 
 ## Publish Readiness Impact
 
-`pi-orc` is not publish-ready until the license decision is recorded.
+The license decision is recorded.
 
 Before publish or release:
 
-- choose a license;
-- add the matching `LICENSE` file;
-- update the README license section;
-- add `package.json` `license` metadata when appropriate;
 - re-run package verification.
 
 ## Recommended Next Action
 
-The project owner should choose one license option, then update the repository metadata and publish-readiness docs in one scoped change.
-
-If the goal is broad reuse with minimal restrictions, evaluate MIT, Apache-2.0, and BSD-3-Clause first. If the goal is requiring distributed derivatives to remain open, evaluate GPL or AGPL terms with legal review.
+Keep the license metadata, README, and release checklist aligned before publish or release.
