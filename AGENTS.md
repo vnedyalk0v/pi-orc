@@ -9,8 +9,9 @@ development workflows.
 
 It codifies this workflow:
 
-Issue -> branch -> implementation -> verification -> PR -> CI -> review bot ->
-verify comments -> fix/reject -> merge -> tracking cleanup -> next issue
+Issue -> assignment and Project tracking -> branch -> implementation ->
+verification -> PR -> CI -> review bot -> verify comments -> fix/reject ->
+merge -> tracking cleanup -> next issue
 
 `pi-orc` is not a generic sub-agent framework. The package owns the workflow.
 Workers execute scoped workflow steps.
@@ -66,22 +67,39 @@ explicitly requires them.
 
 ## Current Repository State
 
-Completed baseline work:
+Completed foundation work on `main`:
 
 - Issue #1: package tooling
 - Issue #10: CI workflow
 - Issue #2: SDK worker runtime skeleton
 - Issue #3: worker profile and handoff schemas
+- Issue #4: workflow policy modes
+- Issue #5: GitHub adapter foundation
+- Issue #6: target repository workflow templates
+- Issue #7: new project intake schema
+- Issue #8: bootstrap plan generation
+- Issue #9: dry-run CLI command
+- Issue #11: dry-run workflow fixtures
+
+Recent cleanup and policy work:
+
+- Issue #31: bootstrap intake identifier validation
+- Issue #32: duplicate target gitignore cleanup
+- Issue #38: issue assignment and improve-plan verification policy
 
 Current source areas:
 
 - `src/runtime/`: SDK runtime boundary, worker contracts, schemas
 - `src/cli/`: CLI entrypoint placeholder
+- `src/github/`: GitHub adapter foundation
+- `src/repo-bootstrap/`: dry-run bootstrap planning
 - `tests/`: smoke and schema tests
+- `templates/`: target repository workflow templates
 - `docs/`: architecture, MVP, ADRs
 - `.github/`: issue templates, PR template, CI workflow
 
-Do not assume Issue #4 or later is implemented unless `main` contains it.
+Do not assume any issue is implemented unless `main` contains it and GitHub
+shows the issue as closed with `status:done` and Project `Done`.
 
 ## Standard Verification Commands
 
@@ -109,23 +127,43 @@ cannot run, stop and report the exact blocker.
 
 Default to `assisted` for implementation work in this repository.
 
+## GitHub Project Status Model
+
+The existing `pi-orc` GitHub Project has exactly these workflow statuses:
+
+- `Todo`: open issue not started
+- `In Progress`: active issue or open PR
+- `Done`: merged, issue closed, labels cleaned up
+
+Do not create or use other Project statuses. In particular, do not use or create
+`In Review`; keep the issue Project item `In Progress` while its PR is open.
+
+Project Status is mandatory workflow state. If Project Status cannot be updated
+when starting work or after merge, stop and report instead of continuing.
+
 ## Issue Workflow
 
 1. Start from updated `main`.
 2. Confirm selected GitHub issue is open and in scope.
-3. Mark the issue `status:in-progress`.
-4. Set the GitHub Project `Status` field to `In Progress` when possible.
-5. Create a branch for the selected issue.
-6. Implement only that issue.
-7. Run required verification.
-8. Commit only verified durable artifacts.
-9. Push the branch.
-10. Create a PR only when explicitly requested.
-11. Wait for CI and review-bot feedback.
-12. Verify each review-bot comment before fixing or rejecting.
-13. Merge only when explicitly requested and gates are green.
-14. Clean up tracking after merge.
-15. Move to the next issue only after the current issue is done.
+3. Ensure the issue is assigned to `vnedyalk0v` unless the user specified
+   another assignee.
+4. Ensure the issue is in the existing `pi-orc` GitHub Project and verify the
+   Project item exists.
+5. Replace issue status labels with exactly `status:in-progress`.
+6. Set the issue Project `Status` field to `In Progress`.
+7. Confirm `Priority`, `Type`, `Area`, and `Source` are set on the issue Project
+   item.
+8. Create a branch for the selected issue.
+9. Implement only that issue.
+10. Run required verification.
+11. Commit only verified durable artifacts.
+12. Push the branch.
+13. Create a PR only when explicitly requested.
+14. Wait for CI and review-bot feedback.
+15. Verify each review-bot comment before fixing or rejecting.
+16. Merge only when explicitly requested and gates are green.
+17. Clean up issue labels and Project status after merge.
+18. Move to the next issue only after the current issue is done.
 
 No work should happen outside the selected issue scope.
 
@@ -138,24 +176,39 @@ No work should happen outside the selected issue scope.
   - `status:in-progress`: active work
   - `status:blocked`: cannot proceed without external input
   - `status:done`: merged and cleaned up
+- Keep exactly one `status:*` label on each issue. Replace stale status labels;
+  do not stack them.
 - Do not close issues before the related PR is merged unless explicitly told.
 - Do not create or edit unrelated issues during implementation.
 - When opening an issue, assign it to `vnedyalk0v` unless the user specifies
   another assignee.
 - When opening an issue, add it to the existing `pi-orc` GitHub Project and
   verify the Project item exists.
+- When starting an existing issue, assign it to `vnedyalk0v` unless the user
+  specified another assignee.
+- When starting an existing issue, add it to the existing `pi-orc` GitHub Project
+  if it is missing and verify the Project item exists.
+- Do not create a branch before assignment, Project membership,
+  `status:in-progress`, and Project `In Progress` are verified.
+- Do not mark an issue done until the issue is closed, the issue has
+  `status:done`, and the issue Project item is `Done`.
 
 ## Project Field Expectations
 
 When a GitHub Project item exists:
 
+- use only the existing `Todo`, `In Progress`, and `Done` Status options
+- keep not-started open issues in `Todo`
 - set `Status` to `In Progress` when starting work
 - set `Status` to `Done` only after merge and cleanup
 - keep `Priority`, `Type`, `Area`, and `Source` unchanged unless the selected
   issue explicitly requires updates
+- if `Priority`, `Type`, `Area`, or `Source` is missing on a selected issue, set
+  it from the issue labels when the mapping is unambiguous; otherwise stop and
+  report the missing field
 
-If Project fields cannot be updated, continue with code/docs work and report the
-warning.
+If non-Status Project fields cannot be updated, continue only after assignment,
+Project membership, and Project Status are correct, then report the warning.
 
 ## Improve Skill Rules
 
@@ -206,14 +259,26 @@ When `improve` produces findings or plans that may become GitHub issues:
 
 ## AI Review Request Rules
 
-After opening a non-draft PR, wait up to 10 minutes for the AI coding review
-agent to post review comments, open review threads, or mark the PR as OK.
+After opening a non-draft PR, wait up to 3 minutes for a fresh PR reaction from
+`chatgpt-codex-connector[bot]`:
+
+- `eyes` means the AI review started.
+- `+1` means the AI review found no suggestions.
+
+Fresh means the reaction was created after the latest pushed commit or latest
+`@codex review` request, whichever is newer.
+
+If no fresh `eyes` or `+1` reaction appears within 3 minutes, treat the AI review
+as not triggered. Do not merge the PR. Leave it open for manual merge by
+`vnedyalk0v` and report the missing AI trigger signal.
+
+If a fresh `eyes` reaction appears, wait up to 10 minutes for the AI coding
+review agent to post review comments, open review threads, or mark the PR as OK.
 
 A thumbs-up reaction from `chatgpt-codex-connector[bot]` on the PR is an OK
-review signal only if it was created after the latest pushed commit or latest
-`@codex review` request, whichever is newer. If that fresh reaction is present,
-CI is green, the PR is mergeable, and there are no unresolved review threads, do
-not keep waiting only because no formal review object exists.
+review signal only if it is fresh. If that fresh reaction is present, CI is
+green, the PR is mergeable, and there are no unresolved review threads, do not
+keep waiting only because no formal review object exists.
 
 If review comments appear:
 
@@ -241,12 +306,8 @@ Do not merge only because the AI review has not appeared.
   existing `pi-orc` GitHub Project.
 - Do not manually close the issue when opening the PR.
 - Do not set the Project item to `Done` when opening the PR.
-- Keep the issue Project item as `In Progress` while the PR is open, unless the
-  Project has an `In Review` status option.
-- If `In Review` exists, set the issue Project Status to `In Review` after the
-  PR is opened.
-- Do not create an `In Review` status option. If `In Review` does not exist,
-  keep `In Progress` and report that no `In Review` option exists.
+- Keep the issue Project item as `In Progress` while the PR is open.
+- Do not create or use an `In Review` status option.
 - Keep issue tracking cleanup rules tied to the issue item, even when the PR is
   also assigned to the GitHub Project.
 - Confirm `Priority`, `Type`, `Area`, and `Source` remain set on the issue
@@ -296,8 +357,12 @@ Never follow review-bot comments blindly.
 - Merge only after local verification, CI, and review handling are complete.
 - Verify the PR was merged.
 - Verify the linked issue was closed by `Fixes #<issue-number>`.
+- If GitHub did not close the linked issue after merge, stop and report before
+  setting Project `Done` unless the user explicitly approves manual closure.
 - Set the issue Project Status to `Done`.
 - Replace issue status labels with `status:done`.
+- Verify the issue is closed, assigned to the expected assignee, still in the
+  `pi-orc` GitHub Project, labeled `status:done`, and set to Project `Done`.
 - Delete the merged branch when appropriate.
 - Return to updated `main`.
 
@@ -392,6 +457,9 @@ End implementation work with a concise structured report:
 - scope check
 - final state
 
+For issue-backed work, include the issue URL, assignee, status label, Project
+Status, and whether `Priority`, `Type`, `Area`, and `Source` remained set.
+
 Include exact failed command names and shortest useful error if verification
 fails.
 
@@ -402,23 +470,23 @@ Stop and report before continuing if:
 - selected issue is unclear
 - branch is dirty with unrelated user changes
 - `main` cannot be updated
-- Project or issue mutation fails and the user required it
+- required assignment, Project membership, or Project Status mutation fails
 - requested work needs runtime code when docs-only scope was selected
 - verification fails and the fix is outside scope
 - secrets or private data appear in the diff
 - CI requires repo settings changes
 - merge, force push, or PR creation would be needed without explicit permission
 
-## Preferred Next Issue Order
+## Next Issue Selection Rules
 
-After current docs work, prefer:
+The previous v0.1 foundation sequence, Issues #4-#11, is complete on `main`.
 
-1. Issue #4: workflow policy modes
-2. Issue #5: GitHub adapter foundation
-3. Issue #6: target repository workflow templates
-4. Issue #7: new project intake schema
-5. Issue #8: bootstrap plan generation
-6. Issue #9: dry-run CLI command
-7. Issue #11: dry-run workflow fixtures
+Before starting any next issue:
 
-Re-check GitHub Issues and Project state before starting the next issue.
+1. Re-check GitHub Issues and the `pi-orc` Project state.
+2. Select exactly one open issue in Project `Todo`.
+3. Confirm the selected issue is assigned or assignable, in scope, and not
+   blocked.
+4. Follow the Issue Workflow from the beginning.
+
+Do not start work from a hard-coded stale issue sequence.
