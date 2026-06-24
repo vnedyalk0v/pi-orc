@@ -23,6 +23,10 @@ const GitHubOwnerNameSchema = z
   .string()
   .max(39)
   .regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/);
+const maxGitPathBytes = 4096;
+// Reserve room for the checkout path plus "/.git/" before the ref lock path.
+const gitRepositoryPathByteReserve = 512;
+const maxGitBranchRefLockPathBytes = maxGitPathBytes - gitRepositoryPathByteReserve;
 const GitHubRepositoryNameSchema = z
   .string()
   .min(1)
@@ -46,7 +50,7 @@ const GitBranchNameSchema = z
   .refine((name) => !name.endsWith("/"))
   .refine((name) => !name.endsWith("."))
   .refine((name) => !name.endsWith(".lock"))
-  .refine((name) => Buffer.byteLength(`refs/heads/${name}.lock`, "utf8") <= 4096)
+  .refine((name) => Buffer.byteLength(`refs/heads/${name}.lock`, "utf8") <= maxGitBranchRefLockPathBytes)
   .refine((name) => name.split("/").every((part) => Buffer.byteLength(part, "utf8") <= 250 && !part.startsWith(".") && !part.endsWith(".lock")));
 
 const NewProjectIntakeBaseSchema = z

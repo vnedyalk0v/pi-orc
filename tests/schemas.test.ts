@@ -241,7 +241,7 @@ describe("new project intake schema", () => {
         projectName: "Example App",
         repositoryOwner: "vnedyalk0v",
         repositoryName: "example-app",
-        defaultBranch: `${"a/".repeat(2039)}a`
+        defaultBranch: `${"a/".repeat(1783)}a`
       }).success
     ).toBe(true);
   });
@@ -279,6 +279,8 @@ describe("new project intake schema", () => {
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "feature/hotfix.lock" }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "a".repeat(251) }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: "\u{1F600}".repeat(63) }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(1784)}a` }).success).toBe(false);
+    expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(2039)}a` }).success).toBe(false);
     expect(NewProjectIntakeSchema.safeParse({ ...baseIntake, defaultBranch: `${"a/".repeat(2040)}a` }).success).toBe(false);
   });
 
