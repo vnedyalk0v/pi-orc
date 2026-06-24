@@ -136,6 +136,14 @@ describe("worker contract schemas", () => {
     ).toBe(false);
 
     expect(
+      WorkflowArtifactSchema.parse({
+        path: ".ai-workflow/tmp/run-1/transient.md",
+        kind: "transient",
+        verified: false
+      }).verified
+    ).toBe(false);
+
+    expect(
       WorkflowArtifactSchema.safeParse({
         path: ".ai-workflow/runs/run-1/raw.md",
         kind: "raw",
@@ -158,6 +166,46 @@ describe("worker contract schemas", () => {
         verified: false
       }).verified
     ).toBe(false);
+
+    expect(
+      WorkflowArtifactSchema.parse({
+        path: "plans/README.md",
+        kind: "durable",
+        verified: true
+      }).verified
+    ).toBe(true);
+
+    expect(
+      WorkflowArtifactSchema.safeParse({
+        path: "docs/ai/verified-reports/run-1.md",
+        kind: "raw",
+        verified: false
+      }).success
+    ).toBe(false);
+
+    expect(
+      WorkflowArtifactSchema.safeParse({
+        path: ".ai-workflow/runs/run-1/durable.md",
+        kind: "durable",
+        verified: true
+      }).success
+    ).toBe(false);
+
+    for (const path of [
+      "/absolute/path.md",
+      "../escape.md",
+      "./.ai-workflow/runs/bad.md",
+      ".ai-workflow/runs//bad.md",
+      ".ai-workflow\\runs\\bad.md"
+    ]) {
+      expect(
+        WorkflowArtifactSchema.safeParse({
+          path,
+          kind: "raw",
+          verified: false
+        }).success
+      ).toBe(false);
+    }
   });
 });
 

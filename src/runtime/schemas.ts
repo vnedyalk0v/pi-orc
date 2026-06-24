@@ -139,26 +139,45 @@ export const WorkerRunInputSchema = z
   })
   .strict();
 
-const ArtifactPathSchema = z.string().min(1);
+const localOnlyArtifactPathRoots = [".ai-workflow/runs/", ".ai-workflow/cache/", ".ai-workflow/tmp/"] as const;
+
+function isSafeRelativeArtifactPath(path: string): boolean {
+  const segments = path.split("/");
+
+  return (
+    !path.startsWith("/") &&
+    !/^[A-Za-z]:/.test(path) &&
+    !path.includes("\\") &&
+    segments.every((segment) => segment !== "" && segment !== "." && segment !== "..")
+  );
+}
+
+function isLocalOnlyArtifactPath(path: string): boolean {
+  return localOnlyArtifactPathRoots.some((root) => path.startsWith(root));
+}
+
+const SafeArtifactPathSchema = z.string().min(1).refine(isSafeRelativeArtifactPath);
+const LocalOnlyArtifactPathSchema = SafeArtifactPathSchema.refine(isLocalOnlyArtifactPath);
+const DurableArtifactPathSchema = SafeArtifactPathSchema.refine((path) => !isLocalOnlyArtifactPath(path));
 
 export const WorkflowArtifactSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      path: ArtifactPathSchema,
+      path: DurableArtifactPathSchema,
       kind: z.literal("durable"),
       verified: z.boolean()
     })
     .strict(),
   z
     .object({
-      path: ArtifactPathSchema,
+      path: LocalOnlyArtifactPathSchema,
       kind: z.literal("raw"),
       verified: z.literal(false)
     })
     .strict(),
   z
     .object({
-      path: ArtifactPathSchema,
+      path: LocalOnlyArtifactPathSchema,
       kind: z.literal("transient"),
       verified: z.boolean()
     })
