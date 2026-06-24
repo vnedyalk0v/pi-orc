@@ -1,6 +1,7 @@
 node_modules/
 dist/
 coverage/
+.DS_Store
 **/.ai-workflow/runs/
 **/.ai-workflow/cache/
 **/.ai-workflow/tmp/
