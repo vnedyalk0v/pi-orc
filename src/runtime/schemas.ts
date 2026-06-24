@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { z } from "zod";
 
 import { workflowModes } from "./WorkflowPolicy.js";
@@ -18,16 +19,48 @@ export const defaultNewProjectIntakeOptions = {
   pushInitialCommit: false
 } as const;
 
+const GitHubOwnerNameSchema = z
+  .string()
+  .max(39)
+  .regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/);
+const githubBranchRefPrefix = "refs/heads/";
+const maxGitHubRefNameBytes = 255;
+const GitHubRepositoryNameSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(/^[A-Za-z0-9._-]+$/)
+  .refine((name) => name !== "." && name !== "..")
+  .refine((name) => !name.toLowerCase().endsWith(".git") && !name.toLowerCase().endsWith(".wiki"));
+const GitBranchNameSchema = z
+  .string()
+  .min(1)
+  .refine((name) => !/[\s\x00-\x1F\x7F~^:?*\[\\]/.test(name))
+  .refine((name) => !name.includes(".."))
+  .refine((name) => !name.includes("//"))
+  .refine((name) => !name.includes("@{"))
+  .refine((name) => name !== "HEAD")
+  .refine((name) => !name.startsWith("refs/"))
+  .refine((name) => !/^[a-fA-F0-9]{40}$/.test(name))
+  .refine((name) => !name.startsWith("/"))
+  .refine((name) => !name.startsWith("-"))
+  .refine((name) => !name.startsWith("+"))
+  .refine((name) => !name.endsWith("/"))
+  .refine((name) => !name.endsWith("."))
+  .refine((name) => !name.endsWith(".lock"))
+  .refine((name) => Buffer.byteLength(`${githubBranchRefPrefix}${name}`, "utf8") <= maxGitHubRefNameBytes)
+  .refine((name) => name.split("/").every((part) => Buffer.byteLength(part, "utf8") <= 250 && !part.startsWith(".") && !part.endsWith(".lock")));
+
 const NewProjectIntakeBaseSchema = z
   .object({
     projectName: z.string().min(1),
-    repositoryOwner: z.string().min(1),
-    repositoryName: z.string().min(1),
+    repositoryOwner: GitHubOwnerNameSchema,
+    repositoryName: GitHubRepositoryNameSchema,
     repositoryVisibility: ProjectRepositoryVisibilitySchema.default(defaultNewProjectIntakeOptions.repositoryVisibility),
     description: z.string().default(defaultNewProjectIntakeOptions.description),
-    defaultBranch: z.string().min(1).default(defaultNewProjectIntakeOptions.defaultBranch),
+    defaultBranch: GitBranchNameSchema.default(defaultNewProjectIntakeOptions.defaultBranch),
     githubProjectOwnerType: GitHubProjectOwnerTypeSchema.default(defaultNewProjectIntakeOptions.githubProjectOwnerType),
-    githubProjectOwner: z.string().min(1).optional(),
+    githubProjectOwner: GitHubOwnerNameSchema.optional(),
     workflowMode: z.enum(workflowModes).default(defaultNewProjectIntakeOptions.workflowMode),
     stackProfile: z.string().min(1).default(defaultNewProjectIntakeOptions.stackProfile),
     verificationCommands: z.array(z.string().min(1)).default(() => [...defaultNewProjectIntakeOptions.verificationCommands]),
