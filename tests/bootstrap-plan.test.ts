@@ -59,6 +59,8 @@ describe("bootstrap plan generation", () => {
     expect(markdown).toContain("# Bootstrap Plan: Example TypeScript App");
     expect(markdown).toContain("## Files");
     expect(markdown).toContain("## GitHub Actions");
+    expect(markdown).toContain("create-label `status:in-progress`");
+    expect(markdown).toContain("create-issue `chore: verify project foundation`");
     expect(markdown).toContain("## Policy Gates");
   });
 
