@@ -46,6 +46,6 @@
     "build": "tsc",
     "prepack": "npm run build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit"
   }
 }

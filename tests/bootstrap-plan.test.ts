@@ -118,6 +118,6 @@ describe("bootstrap plan generation", () => {
   });
 });
 
-function readFixture(name: (typeof fixtureNames)[number]): unknown {
-  return JSON.parse(readFileSync(join(fixtureDir, `${name}.json`), "utf8")) as unknown;
+function readFixture(name: (typeof fixtureNames)[number]): Record<string, unknown> {
+  return JSON.parse(readFileSync(join(fixtureDir, `${name}.json`), "utf8")) as Record<string, unknown>;
 }
