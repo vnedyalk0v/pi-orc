@@ -102,6 +102,9 @@ const requiredPolicyActions: Record<GitHubAction["kind"], WorkflowActionCategory
   "add-project-item": "add-issue-to-project"
 };
 
+const defaultGhCommandTimeoutMs = 120_000;
+const defaultGhCommandMaxOutputBytes = 1_000_000;
+
 export class GhGitHubAdapter implements GitHubAdapter {
   constructor(private readonly run: GitHubCommandRunner = runGhCommand) {}
 
@@ -209,29 +212,121 @@ function compact(parts: readonly (string | readonly string[])[]): string[] {
   return parts.flat();
 }
 
-function runGhCommand(args: readonly string[]): Promise<GitHubCommandOutput> {
+interface RunGhCommandOptions {
+  command?: string;
+  timeoutMs?: number;
+  maxOutputBytes?: number;
+}
+
+export function runGhCommandForTest(
+  args: readonly string[],
+  options: RunGhCommandOptions = {}
+): Promise<GitHubCommandOutput> {
   return new Promise((resolve, reject) => {
-    const child = spawn("gh", [...args], {
+    const command = options.command ?? "gh";
+    const timeoutMs = options.timeoutMs ?? defaultGhCommandTimeoutMs;
+    const maxOutputBytes = options.maxOutputBytes ?? defaultGhCommandMaxOutputBytes;
+    const child = spawn(command, [...args], {
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
     let stderr = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let settled = false;
+
+    const finish = (output: GitHubCommandOutput) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      resolve(output);
+    };
+
+    const killWithError = (message: string) => {
+      child.kill();
+      finish({
+        exitCode: 1,
+        stdout,
+        stderr: stderr ? `${stderr}\n${message}` : message
+      });
+    };
+
+    const timeout = setTimeout(() => {
+      killWithError("gh command timed out");
+    }, timeoutMs);
 
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
+      const result = appendChunk(stdout, stdoutBytes, chunk, maxOutputBytes);
+      stdout = result.output;
+      stdoutBytes = result.bytes;
+
+      if (result.exceeded) {
+        killWithError(`gh stdout exceeded ${maxOutputBytes} byte output limit`);
+      }
     });
     child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
+      const result = appendChunk(stderr, stderrBytes, chunk, maxOutputBytes);
+      stderr = result.output;
+      stderrBytes = result.bytes;
+
+      if (result.exceeded) {
+        killWithError(`gh stderr exceeded ${maxOutputBytes} byte output limit`);
+      }
     });
     child.on("error", reject);
     child.on("close", (exitCode) => {
-      resolve({
+      finish({
         exitCode: exitCode ?? 1,
         stdout,
         stderr
       });
     });
   });
+}
+
+function runGhCommand(args: readonly string[]): Promise<GitHubCommandOutput> {
+  return runGhCommandForTest(args);
+}
+
+function appendChunk(output: string, outputBytes: number, chunk: string, maxBytes: number) {
+  const chunkBytes = Buffer.byteLength(chunk, "utf8");
+
+  if (outputBytes + chunkBytes <= maxBytes) {
+    return {
+      output: output + chunk,
+      bytes: outputBytes + chunkBytes,
+      exceeded: false
+    };
+  }
+
+  const remainingBytes = Math.max(maxBytes - outputBytes, 0);
+
+  return {
+    output: output + truncateUtf8(chunk, remainingBytes),
+    bytes: maxBytes,
+    exceeded: true
+  };
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  let bytes = 0;
+  let result = "";
+
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+
+    if (bytes + characterBytes > maxBytes) {
+      break;
+    }
+
+    bytes += characterBytes;
+    result += character;
+  }
+
+  return result;
 }
