@@ -140,6 +140,10 @@ No work should happen outside the selected issue scope.
   - `status:done`: merged and cleaned up
 - Do not close issues before the related PR is merged unless explicitly told.
 - Do not create or edit unrelated issues during implementation.
+- When opening an issue, assign it to `vnedyalk0v` unless the user specifies
+  another assignee.
+- When opening an issue, add it to the existing `pi-orc` GitHub Project and
+  verify the Project item exists.
 
 ## Project Field Expectations
 
@@ -152,6 +156,16 @@ When a GitHub Project item exists:
 
 If Project fields cannot be updated, continue with code/docs work and report the
 warning.
+
+## Improve Skill Rules
+
+When `improve` produces findings or plans that may become GitHub issues:
+
+1. Run a separate fresh-context verification agent against the plans and current
+   repository state.
+2. Remove false positives and stale findings.
+3. Publish GitHub issues only for verified real findings.
+4. Do not commit raw improve plans unless they are verified durable artifacts.
 
 ## Branch Rules
 
