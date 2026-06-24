@@ -130,7 +130,7 @@ export function renderBootstrapPlanMarkdown(plan: BootstrapPlan): string {
     ...plan.files.map((action) => `- \`${action.path}\` from \`${action.template}\``),
     "",
     "## GitHub Actions",
-    ...plan.githubActions.map((action) => `- ${action.action.kind} (${action.requiredPolicyAction})`),
+    ...plan.githubActions.map((action) => `- ${renderGitHubAction(action.action)} (${action.requiredPolicyAction})`),
     "",
     "## Git Actions",
     ...plan.gitActions.map((action) => `- ${action.kind}: \`${action.command}\``),
@@ -246,6 +246,23 @@ function gitPlanActions(
       requiredPolicyAction: "push"
     }
   ];
+}
+
+function renderGitHubAction(action: GitHubAction): string {
+  switch (action.kind) {
+    case "create-repository":
+      return `create-repository \`${action.name}\` as \`${action.visibility}\`${action.description ? `: ${action.description}` : ""}`;
+    case "create-label":
+      return `create-label \`${action.name}\` in \`${action.repository}\`${action.color ? ` (#${action.color})` : ""}`;
+    case "create-project":
+      return `create-project \`${action.title}\` for \`${action.owner}\``;
+    case "link-project":
+      return `link-project #${action.projectNumber} for \`${action.repository}\``;
+    case "create-issue":
+      return `create-issue \`${action.title}\` in \`${action.repository}\`${action.labels?.length ? ` labels: ${action.labels.map((label) => `\`${label}\``).join(", ")}` : ""}`;
+    case "add-project-item":
+      return `add-project-item \`${action.itemUrl}\` to project #${action.projectNumber}`;
+  }
 }
 
 function targetPath(template: string): string {
