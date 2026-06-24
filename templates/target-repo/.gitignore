@@ -1,9 +1,0 @@
-.DS_Store
-node_modules/
-dist/
-coverage/
-
-# Raw and local-only AI workflow artifacts.
-.ai-workflow/runs/
-.ai-workflow/cache/
-.ai-workflow/tmp/
