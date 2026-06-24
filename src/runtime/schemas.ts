@@ -148,7 +148,7 @@ function isSafeRelativeArtifactPath(path: string): boolean {
     !path.startsWith("/") &&
     !/^[A-Za-z]:/.test(path) &&
     !path.includes("\\") &&
-    segments.every((segment) => segment !== "" && segment !== "..")
+    segments.every((segment) => segment !== "" && segment !== "." && segment !== "..")
   );
 }
 

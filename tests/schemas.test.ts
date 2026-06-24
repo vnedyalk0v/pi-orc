@@ -191,7 +191,13 @@ describe("worker contract schemas", () => {
       }).success
     ).toBe(false);
 
-    for (const path of ["/absolute/path.md", "../escape.md", ".ai-workflow/runs//bad.md", ".ai-workflow\\runs\\bad.md"]) {
+    for (const path of [
+      "/absolute/path.md",
+      "../escape.md",
+      "./.ai-workflow/runs/bad.md",
+      ".ai-workflow/runs//bad.md",
+      ".ai-workflow\\runs\\bad.md"
+    ]) {
       expect(
         WorkflowArtifactSchema.safeParse({
           path,
