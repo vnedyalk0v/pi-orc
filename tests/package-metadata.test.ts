@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -25,5 +26,45 @@ describe("package metadata", () => {
     });
 
     expect(missingPaths).toEqual([]);
+  });
+
+  it("explicitly exposes one Pi skill", () => {
+    const output = execFileSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
+          import { DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
+
+          const [repoRoot] = process.argv.slice(1);
+          const packageManager = new DefaultPackageManager({
+            cwd: repoRoot,
+            agentDir: "/tmp/pi-orc-package-metadata-agent",
+            settingsManager: SettingsManager.inMemory()
+          });
+          const resolved = await packageManager.resolveExtensionSources([repoRoot], { temporary: true });
+          console.log(JSON.stringify({
+            extensions: resolved.extensions.length,
+            skills: resolved.skills.map((skill) => skill.path.replace(repoRoot, ".")),
+            prompts: resolved.prompts.length,
+            themes: resolved.themes.length
+          }));
+        `,
+        repoRoot
+      ],
+      { cwd: repoRoot, encoding: "utf8" }
+    );
+    const resolved = JSON.parse(output) as {
+      extensions: number;
+      skills: string[];
+      prompts: number;
+      themes: number;
+    };
+
+    expect(resolved.skills).toEqual(["./skills/pi-orc-new-project/SKILL.md"]);
+    expect(resolved.extensions).toBe(0);
+    expect(resolved.prompts).toBe(0);
+    expect(resolved.themes).toBe(0);
   });
 });
