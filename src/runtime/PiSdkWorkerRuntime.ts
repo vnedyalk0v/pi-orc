@@ -9,7 +9,10 @@ import {
 } from "./schemas.js";
 
 export interface PiSdkAgentSession {
-  prompt(text: string, options?: { expandPromptTemplates?: boolean; source?: string }): Promise<void>;
+  prompt(
+    text: string,
+    options?: { expandPromptTemplates?: boolean; source?: "interactive" | "rpc" | "extension" }
+  ): Promise<void>;
   messages?: readonly PiSdkAgentMessage[];
   getLastAssistantText?: () => string | undefined;
   dispose?: () => void | Promise<void>;
@@ -90,8 +93,7 @@ export class PiSdkWorkerRuntime implements WorkerRuntime {
         })
       );
       await session.prompt(prompt, {
-        expandPromptTemplates: false,
-        source: "sdk"
+        expandPromptTemplates: false
       });
 
       const output = getAssistantText(session);

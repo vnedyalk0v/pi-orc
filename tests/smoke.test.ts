@@ -71,14 +71,16 @@ describe("PiSdkWorkerRuntime", () => {
     };
     let factoryOptions: PiSdkSessionFactoryOptions | undefined;
     let prompted = "";
+    let promptOptions: unknown;
     let disposed = false;
     const runtime = new PiSdkWorkerRuntime({
       createAgentSession: async (options) => {
         factoryOptions = options;
 
         return {
-          prompt: async (text) => {
+          prompt: async (text, options) => {
             prompted = text;
+            promptOptions = options;
           },
           messages: [
             {
@@ -107,6 +109,7 @@ describe("PiSdkWorkerRuntime", () => {
     expect(factoryOptions?.handoff.runId).toBe("smoke-run");
     expect(factoryOptions?.prompt).toContain("Do not assume parent chat history.");
     expect(prompted).toContain('"workerId": "foundation-worker"');
+    expect(promptOptions).toEqual({ expandPromptTemplates: false });
     expect(disposed).toBe(true);
   });
 
