@@ -22,6 +22,133 @@ describe("GhGitHubAdapter", () => {
     });
   });
 
+  it("loads PR review context through read-only gh commands", async () => {
+    const calls: string[][] = [];
+    const adapter = new GhGitHubAdapter(async (args) => {
+      calls.push([...args]);
+
+      if (args[0] === "pr") {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            headRefOid: "abc123",
+            statusCheckRollup: [
+              {
+                name: "verify",
+                conclusion: "SUCCESS",
+                detailsUrl: "https://github.com/owner/repo/actions/runs/1"
+              }
+            ]
+          }),
+          stderr: ""
+        };
+      }
+
+      if (args[0] === "api" && args[1] === "graphql") {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            data: {
+              repository: {
+                pullRequest: {
+                  comments: {
+                    nodes: [
+                      {
+                        id: "issue-comment-node",
+                        databaseId: 101,
+                        author: { login: "chatgpt-codex-connector[bot]" },
+                        body: "Top-level review signal."
+                      }
+                    ]
+                  },
+                  reviewThreads: {
+                    nodes: [
+                      {
+                        id: "thread-1",
+                        isResolved: false,
+                        comments: {
+                          nodes: [
+                            {
+                              id: "review-comment-node",
+                              databaseId: 202,
+                              author: { login: "chatgpt-codex-connector[bot]" },
+                              body: "Inline review signal.",
+                              path: "src/file.ts",
+                              line: 12
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }),
+          stderr: ""
+        };
+      }
+
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          [
+            {
+              user: { login: "chatgpt-codex-connector[bot]" },
+              content: "+1",
+              created_at: "2026-06-25T00:00:00.000Z"
+            }
+          ]
+        ]),
+        stderr: ""
+      };
+    });
+
+    await expect(adapter.loadPullRequestReviewContext({ repository: "owner/repo", pullRequestNumber: 7 })).resolves.toMatchObject({
+      repository: "owner/repo",
+      pullRequestNumber: 7,
+      headSha: "abc123",
+      comments: [
+        {
+          id: "101",
+          source: "review-bot",
+          body: "Top-level review signal."
+        }
+      ],
+      reviewThreads: [
+        {
+          id: "thread-1",
+          isResolved: false,
+          comments: [
+            {
+              id: "202",
+              source: "review-bot",
+              path: "src/file.ts",
+              line: 12
+            }
+          ]
+        }
+      ],
+      checks: [
+        {
+          name: "verify",
+          state: "success"
+        }
+      ],
+      botReactions: [
+        {
+          actor: "chatgpt-codex-connector[bot]",
+          reaction: "thumbs-up"
+        }
+      ]
+    });
+    expect(calls.map((call) => call.slice(0, 2))).toEqual([
+      ["pr", "view"],
+      ["api", "graphql"],
+      ["api", "repos/owner/repo/issues/7/reactions"]
+    ]);
+  });
+
   it("plans typed GitHub mutations behind policy categories", () => {
     const adapter = new GhGitHubAdapter();
 

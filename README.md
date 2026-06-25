@@ -15,6 +15,7 @@ workflow automation will build on.
 - exposes the `pi-orc-new-project` Pi Coding Agent skill
 - supports `pi-orc new-project --dry-run`
 - supports assisted local template writes with `pi-orc new-project --intake`
+- supports read-only PR review summaries with `pi-orc sync-review --repo --pr`
 - validates new-project intake with typed schemas
 - renders planned repository files, GitHub actions, git actions, and policy
   gates
@@ -35,6 +36,7 @@ npm ci
 npm run build
 node dist/cli/pi-orc.js --help
 node dist/cli/pi-orc.js new-project --dry-run
+node dist/cli/pi-orc.js sync-review --repo owner/name --pr 123
 ```
 
 With your own intake file:
@@ -138,8 +140,8 @@ GitHub mutation decisions, and artifact publication decisions.
 - full audit workflow
 - full verification workflow
 - implementation workers
-- pull request review monitoring
-- review-thread resolution
+- autonomous pull request review handling
+- review-thread resolution execution
 - branch protection automation
 - release automation
 - npm publishing automation

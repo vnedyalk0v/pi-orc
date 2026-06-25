@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { isCliEntrypoint, runPiOrcCli } from "../src/cli/pi-orc.js";
+import type { PullRequestReviewContext, PullRequestReviewContextAdapter } from "../src/index.js";
 
 const baseIntake = {
   projectName: "Sandbox App",
@@ -22,23 +23,55 @@ const baseIntake = {
   pushInitialCommit: true
 };
 
-function run(args: readonly string[], options: { cwd?: string } = {}) {
+const baseReviewContext: PullRequestReviewContext = {
+  repository: "owner/repo",
+  pullRequestNumber: 7,
+  headSha: "abc123",
+  comments: [],
+  reviewThreads: [],
+  checks: [
+    {
+      name: "verify",
+      state: "success",
+      detailsUrl: "https://github.com/owner/repo/actions/runs/1"
+    }
+  ],
+  botReactions: [
+    {
+      actor: "chatgpt-codex-connector[bot]",
+      reaction: "eyes",
+      createdAt: "2026-06-25T00:00:00.000Z"
+    }
+  ]
+};
+
+function fakeReviewAdapter(context: PullRequestReviewContext): PullRequestReviewContextAdapter {
+  return {
+    loadPullRequestReviewContext: async () => context
+  };
+}
+
+async function run(args: readonly string[], options: { cwd?: string; reviewAdapter?: PullRequestReviewContextAdapter } = {}) {
   let stdout = "";
   let stderr = "";
-  const exitCode = runPiOrcCli(args, {
-    stdout: {
-      write: (chunk: string) => {
-        stdout += chunk;
-        return true;
+  const exitCode = await runPiOrcCli(
+    args,
+    {
+      stdout: {
+        write: (chunk: string) => {
+          stdout += chunk;
+          return true;
+        }
+      },
+      stderr: {
+        write: (chunk: string) => {
+          stderr += chunk;
+          return true;
+        }
       }
     },
-    stderr: {
-      write: (chunk: string) => {
-        stderr += chunk;
-        return true;
-      }
-    }
-  }, options);
+    options
+  );
 
   return { exitCode, stdout, stderr };
 }
@@ -51,8 +84,8 @@ function writeIntake(dir: string, overrides: Record<string, unknown> = {}) {
 }
 
 describe("pi-orc CLI", () => {
-  it("prints a new-project dry-run plan without executing mutations", () => {
-    const result = run(["new-project", "--dry-run"]);
+  it("prints a new-project dry-run plan without executing mutations", async () => {
+    const result = await run(["new-project", "--dry-run"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -62,19 +95,19 @@ describe("pi-orc CLI", () => {
     expect(result.stdout).toContain("Dry run: no GitHub, git, or file mutations executed.");
   });
 
-  it("rejects execution without an explicit intake file", () => {
-    const result = run(["new-project"]);
+  it("rejects execution without an explicit intake file", async () => {
+    const result = await run(["new-project"]);
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("new-project execution requires --intake path/to/intake.json");
   });
 
-  it("writes assisted local template files and gates GitHub and git actions", () => {
+  it("writes assisted local template files and gates GitHub and git actions", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pi-orc-assisted-"));
 
     try {
       const intakePath = writeIntake(dir);
-      const result = run(["new-project", "--intake", intakePath], { cwd: dir });
+      const result = await run(["new-project", "--intake", intakePath], { cwd: dir });
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
@@ -89,12 +122,12 @@ describe("pi-orc CLI", () => {
     }
   });
 
-  it("keeps manual mode local file writes gated", () => {
+  it("keeps manual mode local file writes gated", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pi-orc-manual-"));
 
     try {
       const intakePath = writeIntake(dir, { workflowMode: "manual" });
-      const result = run(["new-project", "--intake", intakePath], { cwd: dir });
+      const result = await run(["new-project", "--intake", intakePath], { cwd: dir });
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
@@ -107,14 +140,14 @@ describe("pi-orc CLI", () => {
     }
   });
 
-  it("rejects symlinked target path components before writing files", () => {
+  it("rejects symlinked target path components before writing files", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pi-orc-symlink-"));
     const outside = mkdtempSync(join(tmpdir(), "pi-orc-outside-"));
 
     try {
       const intakePath = writeIntake(dir);
       symlinkSync(outside, join(dir, "docs"));
-      const result = run(["new-project", "--intake", intakePath], { cwd: dir });
+      const result = await run(["new-project", "--intake", intakePath], { cwd: dir });
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("target path contains symlink docs");
@@ -125,13 +158,13 @@ describe("pi-orc CLI", () => {
     }
   });
 
-  it("reports the failed local file action", () => {
+  it("reports the failed local file action", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pi-orc-failure-"));
 
     try {
       const intakePath = writeIntake(dir);
       writeFileSync(join(dir, "AGENTS.md"), "existing");
-      const result = run(["new-project", "--intake", intakePath], { cwd: dir });
+      const result = await run(["new-project", "--intake", intakePath], { cwd: dir });
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("write-local-files AGENTS.md failed:");
@@ -153,5 +186,115 @@ describe("pi-orc CLI", () => {
     } finally {
       rmSync(dir, { force: true, recursive: true });
     }
+  });
+
+  it("prints a read-only sync-review summary with no comments", async () => {
+    const result = await run(["sync-review", "--repo", "owner/repo", "--pr", "7"], {
+      reviewAdapter: fakeReviewAdapter(baseReviewContext)
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("# PR Review Sync: owner/repo#7");
+    expect(result.stdout).toContain("Summary: 0 valid, 0 rejected, 0 unresolved review-bot comment(s).");
+    expect(result.stdout).toContain("- verify: success");
+    expect(result.stdout).toContain("Read-only: no comments, review-thread resolutions, commits, pushes, or merges executed.");
+  });
+
+  it("prints valid sync-review comments with policy-gated reply plans", async () => {
+    const result = await run(["sync-review", "--repo", "owner/repo", "--pr", "7"], {
+      reviewAdapter: fakeReviewAdapter({
+        ...baseReviewContext,
+        reviewThreads: [
+          {
+            id: "thread-1",
+            isResolved: false,
+            comments: [
+              {
+                id: "comment-1",
+                source: "review-bot",
+                author: "chatgpt-codex-connector[bot]",
+                body: "Missing guard.",
+                path: "src/file.ts",
+                line: 12,
+                verification: {
+                  status: "valid",
+                  evidence: "Guard is absent.",
+                  fixPlan: "Add guard."
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expect(result.stdout).toContain("## Valid Review-Bot Comments");
+    expect(result.stdout).toContain("- comment-1 src/file.ts:12: Missing guard.");
+    expect(result.stdout).toContain("fix: Add guard.");
+    expect(result.stdout).toContain("- comment-on-review comment-1: requires-confirmation");
+  });
+
+  it("prints rejected sync-review comments separately", async () => {
+    const result = await run(["sync-review", "--repo", "owner/repo", "--pr", "7"], {
+      reviewAdapter: fakeReviewAdapter({
+        ...baseReviewContext,
+        comments: [
+          {
+            id: "comment-2",
+            source: "review-bot",
+            author: "chatgpt-codex-connector[bot]",
+            body: "Missing export.",
+            verification: {
+              status: "invalid",
+              evidence: "Export exists.",
+              rejectionReason: "Reply with export evidence."
+            }
+          }
+        ]
+      })
+    });
+
+    expect(result.stdout).toContain("## Rejected Review-Bot Comments");
+    expect(result.stdout).toContain("- comment-2: Missing export.");
+    expect(result.stdout).toContain("reply: Reply with export evidence.");
+  });
+
+  it("prints unresolved sync-review comments and verification steps", async () => {
+    const result = await run(["sync-review", "--repo", "owner/repo", "--pr", "7"], {
+      reviewAdapter: fakeReviewAdapter({
+        ...baseReviewContext,
+        reviewThreads: [
+          {
+            id: "thread-2",
+            isResolved: false,
+            comments: [
+              {
+                id: "comment-3",
+                source: "review-bot",
+                author: "chatgpt-codex-connector[bot]",
+                body: "Maybe stale.",
+                verification: {
+                  status: "unresolved",
+                  reason: "Needs code check.",
+                  nextStep: "Inspect current branch."
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expect(result.stdout).toContain("## Unresolved Review-Bot Comments");
+    expect(result.stdout).toContain("next: Inspect current branch.");
+    expect(result.stdout).toContain("- comment-3 in thread-2: Inspect current branch.");
+  });
+
+  it("rejects sync-review without explicit inputs", async () => {
+    const result = await run(["sync-review", "--repo", "owner/repo"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("sync-review requires --pr number");
   });
 });
