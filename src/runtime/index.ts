@@ -16,6 +16,7 @@ export {
   type WorkflowPolicyDecision,
   type WorkflowPolicyDecisionStatus
 } from "./WorkflowPolicy.js";
+export { defaultPlanningWorkerProfile, defaultVerificationWorkerProfile, defaultWorkerProfiles } from "./WorkerProfiles.js";
 export {
   defaultNewProjectIntakeOptions,
   GitHubProjectOwnerTypeSchema,

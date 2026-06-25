@@ -7,7 +7,10 @@ export { GhGitHubAdapter, syncPullRequestReview } from "./github/index.js";
 export { createBootstrapPlanDryRun, generateBootstrapPlan, renderBootstrapPlanMarkdown } from "./repo-bootstrap/index.js";
 export {
   decideWorkflowAction,
+  defaultPlanningWorkerProfile,
   defaultNewProjectIntakeOptions,
+  defaultVerificationWorkerProfile,
+  defaultWorkerProfiles,
   defaultWorkflowPolicies,
   GitHubProjectOwnerTypeSchema,
   NewProjectIntakeSchema,
