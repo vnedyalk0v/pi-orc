@@ -133,7 +133,7 @@ console.log(JSON.stringify({
   promptHasSkill: prompt.includes("pi-orc-new-project")
 }, null, 2));
 NODE
-./node_modules/.bin/pi \
+PI_CODING_AGENT_DIR="$tmp/agent" ./node_modules/.bin/pi \
   --provider openai-codex \
   --model gpt-5.4-mini \
   --approve \
@@ -158,15 +158,17 @@ Expected result:
   ```
 
 - Pi resource discovery reports exactly one skill:
-- `node_modules/pi-orc/skills/pi-orc-new-project/SKILL.md`
+  `node_modules/pi-orc/skills/pi-orc-new-project/SKILL.md`
 - Pi resource discovery reports no extensions, prompts, or themes
 - prompt formatting includes `pi-orc-new-project`
 - the read-only `pi -p` smoke returns `skill: pi-orc-new-project` and the
   recommended `pi-orc new-project --dry-run --intake path/to/intake.json`
   command
 
-Use `--no-extensions` only to isolate unrelated user-global extension failures;
-it is not required for the package skill itself.
+Run the `pi -p` smoke with the same temporary `PI_CODING_AGENT_DIR` so stale
+user-global skills cannot satisfy `/skill:pi-orc-new-project`. Use
+`--no-extensions` only to isolate unrelated user-global extension failures; it
+is not required for the package skill itself.
 
 ## Dogfood Checklist
 

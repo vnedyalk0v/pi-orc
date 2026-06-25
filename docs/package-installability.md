@@ -130,9 +130,10 @@ Project packages:
 
 That follow-up also verified resource discovery from
 `./node_modules/pi-orc`, prompt formatting for `pi-orc-new-project`, and a
-real read-only `pi -p` smoke using `/skill:pi-orc-new-project`. Use
-`--no-extensions` only to isolate unrelated user-global extension failures; it
-is not required for the package skill itself.
+real read-only `pi -p` smoke using `/skill:pi-orc-new-project` under the same
+temporary `PI_CODING_AGENT_DIR`. Use `--no-extensions` only to isolate
+unrelated user-global extension failures; it is not required for the package
+skill itself.
 
 ## Pi Resource Discovery
 
