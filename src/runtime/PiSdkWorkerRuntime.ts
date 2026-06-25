@@ -167,17 +167,20 @@ function parseWorkerOutput(handoff: WorkerHandoff, output: string): WorkerRunRes
 
     if (result.data.status === "success") {
       const missingFiles = handoff.expectedOutput.requiredFiles.filter(
-        (path) => !result.data.artifacts.some((artifact) => artifact.kind === "durable" && artifact.path === path)
+        (path) =>
+          !result.data.artifacts.some(
+            (artifact) => artifact.kind === "durable" && artifact.path === path && artifact.verified
+          )
       );
 
       if (missingFiles.length > 0) {
         return runtimeResult(
           handoff.runId,
           "failure",
-          "SDK worker output missed required files.",
+          "SDK worker output missed required verified files.",
           "runtime.output_contract_mismatch",
           "output_contract_mismatch",
-          `Worker success is missing required durable artifact(s): ${missingFiles.join(", ")}`
+          `Worker success is missing required verified durable artifact(s): ${missingFiles.join(", ")}`
         );
       }
     }
