@@ -16,6 +16,7 @@ workflow automation will build on.
 - supports `pi-orc new-project --dry-run`
 - supports assisted local template writes with `pi-orc new-project --intake`
 - supports read-only PR review summaries with `pi-orc sync-review --repo --pr`
+- supports explicit verification commands with `pi-orc verify --cmd`
 - validates new-project intake with typed schemas
 - renders planned repository files, GitHub actions, git actions, and policy
   gates
@@ -37,6 +38,8 @@ npm run build
 node dist/cli/pi-orc.js --help
 node dist/cli/pi-orc.js new-project --dry-run
 node dist/cli/pi-orc.js sync-review --repo owner/name --pr 123
+node dist/cli/pi-orc.js verify --cmd "npm test"
+node dist/cli/pi-orc.js verify --cmd "npm test" --report docs/ai/verified-reports/report.md
 ```
 
 With your own intake file:
