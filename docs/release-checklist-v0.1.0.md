@@ -32,6 +32,8 @@ Current readiness state:
 - package installability was verified in `docs/package-installability.md`
 - Pi resource discovery was verified in `docs/package-installability.md`
 - dogfood dry-run was verified in `docs/dogfood-new-project-dry-run.md`
+- Pi skill package dogfood was verified in
+  `docs/dogfood-pi-skill-installation.md`
 - Apache-2.0 license metadata is present
 - branch protection ruleset `pi-orc main protection` is active
 
@@ -45,7 +47,6 @@ Current readiness state:
 
 ## Optional Warnings
 
-- `pi` manifest is intentionally `{}` because v0.1 ships no Pi resources.
 - No changelog exists yet; GitHub release notes may be enough for v0.1.
 - Public npm package `pi-orc` does not exist yet, so first publish will claim the
   package name.
@@ -74,6 +75,7 @@ Before release, `npm pack --dry-run --json` must show expected package contents:
 - `package/dist/index.js`
 - `package/dist/index.d.ts`
 - `package/dist/cli/pi-orc.js`
+- `package/skills/pi-orc-new-project/SKILL.md`
 - `package/templates/`
 - `package/README.md`
 - `package/LICENSE`
@@ -105,8 +107,25 @@ npm init -y
 npm install /path/to/pi-orc/pi-orc-0.1.0.tgz
 ./node_modules/.bin/pi-orc --help
 node --input-type=module -e "import('pi-orc').then(m => console.log(JSON.stringify(m.packageInfo)))"
-PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 /path/to/pi-orc/node_modules/.bin/pi install -l "$tmp/pkg/package"
-PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 /path/to/pi-orc/node_modules/.bin/pi list --approve
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi install -l ../pkg/package
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi list --approve
+node --input-type=module - "$tmp/pkg/package" "$tmp/project" "$tmp/agent" <<'NODE'
+import { DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
+
+const [packageRoot, cwd, agentDir] = process.argv.slice(2);
+const packageManager = new DefaultPackageManager({
+  cwd,
+  agentDir,
+  settingsManager: SettingsManager.inMemory()
+});
+const resolved = await packageManager.resolveExtensionSources([packageRoot], { temporary: true });
+console.log(JSON.stringify({
+  extensions: resolved.extensions.length,
+  skills: resolved.skills.map((skill) => skill.path.replace(packageRoot, "package")),
+  prompts: resolved.prompts.length,
+  themes: resolved.themes.length
+}, null, 2));
+NODE
 ```
 
 Expected result:
@@ -115,7 +134,9 @@ Expected result:
 - `import('pi-orc')` works
 - Pi local install succeeds
 - Pi approved package list shows the local package
-- Pi resource discovery reports no resources until intentional resources exist
+- Pi resource discovery reports exactly one skill:
+  `skills/pi-orc-new-project/SKILL.md`
+- Pi resource discovery reports no extensions, prompts, or themes
 
 ## Dogfood Checklist
 

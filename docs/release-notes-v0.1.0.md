@@ -18,6 +18,7 @@ models verified AI-assisted GitHub workflows.
 - New-project intake validation schemas.
 - Target repository templates for docs, issue templates, PR template, workflow
   config, and `AGENTS.md`.
+- Pi package skill `pi-orc-new-project` for new-project bootstrap guidance.
 - Release-readiness, installability, and dogfood verification documents.
 
 ## Not Included
@@ -26,7 +27,8 @@ models verified AI-assisted GitHub workflows.
 - Release automation.
 - Autonomous merge behavior.
 - Pull request review monitoring or review-thread resolution.
-- Pi resources in the package manifest.
+- Additional Pi resources beyond `pi-orc-new-project` such as prompts, themes,
+  or extensions.
 
 ## Verification
 

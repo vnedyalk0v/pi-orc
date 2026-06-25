@@ -12,7 +12,9 @@ workflow automation will build on.
 
 - provides a TypeScript package with one public library export
 - provides the `pi-orc` CLI binary
+- exposes the `pi-orc-new-project` Pi Coding Agent skill
 - supports `pi-orc new-project --dry-run`
+- supports assisted local template writes with `pi-orc new-project --intake`
 - validates new-project intake with typed schemas
 - renders planned repository files, GitHub actions, git actions, and policy
   gates
@@ -23,7 +25,8 @@ workflow automation will build on.
   boundaries
 
 The dry-run command does not create repositories, projects, issues, commits, or
-pushes.
+pushes. Assisted execution may write local template files, but GitHub, commit,
+and push actions remain confirmation-gated.
 
 ## Try it from this checkout
 
@@ -61,6 +64,37 @@ Minimal intake shape:
 }
 ```
 
+## Use it as a Pi package
+
+`pi-orc` ships one explicit Pi Coding Agent skill:
+`pi-orc-new-project`. The skill guides new-project bootstrap work through the
+existing CLI flow: intake validation, dry-run planning, assisted local template
+writes, and verification gates.
+
+From a packed local package:
+
+```sh
+npm pack --json
+tmp=$(mktemp -d)
+mkdir -p "$tmp/pkg" "$tmp/project" "$tmp/agent"
+tar -xzf pi-orc-0.1.0.tgz -C "$tmp/pkg"
+cd "$tmp/project"
+npm init -y
+npm install /path/to/pi-orc/pi-orc-0.1.0.tgz
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi install -l ../pkg/package
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi list --approve
+```
+
+Pi discovers:
+
+- one skill: `skills/pi-orc-new-project/SKILL.md`
+- no extensions
+- no prompts
+- no themes
+
+The skill does not add release automation, autonomous merge behavior, UI
+extensions, prompt templates, themes, or generic sub-agent framework behavior.
+
 ## Package surface
 
 Main exports include:
@@ -93,7 +127,6 @@ GitHub mutation decisions, and artifact publication decisions.
 
 `pi-orc` does not yet provide:
 
-- execution mode for `pi-orc new-project`
 - full audit workflow
 - full verification workflow
 - implementation workers
@@ -110,6 +143,7 @@ GitHub mutation decisions, and artifact publication decisions.
 - [MVP scope](docs/MVP.md)
 - [Package installability](docs/package-installability.md)
 - [Dogfood dry-run report](docs/dogfood-new-project-dry-run.md)
+- [Pi skill package dogfood report](docs/dogfood-pi-skill-installation.md)
 - [v0.1.0 release checklist](docs/release-checklist-v0.1.0.md)
 - [Final v0.1.0 release-readiness audit](docs/release-readiness-final-audit-v0.1.0.md)
 
