@@ -158,4 +158,51 @@ describe("syncPullRequestReview", () => {
     ]);
     expect(result.proposedMutations).toEqual([]);
   });
+
+  it("does not resolve a thread until every review-bot comment in it is handled", async () => {
+    const result = await syncPullRequestReview({
+      repository: "owner/repo",
+      pullRequestNumber: 7,
+      policy: defaultWorkflowPolicies.assisted,
+      adapter: fakeAdapter({
+        ...baseContext,
+        reviewThreads: [
+          {
+            id: "thread-3",
+            isResolved: false,
+            comments: [
+              {
+                id: "comment-4",
+                threadId: "thread-3",
+                source: "review-bot",
+                author: "chatgpt-codex-connector[bot]",
+                body: "This helper duplicates policy logic.",
+                verification: {
+                  status: "invalid",
+                  evidence: "The helper calls the existing workflow policy decision function.",
+                  rejectionReason: "Reply with the policy evidence."
+                }
+              },
+              {
+                id: "comment-5",
+                threadId: "thread-3",
+                source: "review-bot",
+                author: "chatgpt-codex-connector[bot]",
+                body: "This thread may still have another issue.",
+                verification: {
+                  status: "unresolved",
+                  reason: "Needs follow-up verification.",
+                  nextStep: "Inspect the whole thread before resolving it."
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expect(result.rejectedComments.map((comment) => comment.comment.id)).toEqual(["comment-4"]);
+    expect(result.unresolvedComments.map((comment) => comment.comment.id)).toEqual(["comment-5"]);
+    expect(result.proposedMutations.map((mutation) => mutation.mutation)).toEqual(["comment-on-review"]);
+  });
 });

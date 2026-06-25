@@ -115,6 +115,8 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
   const unresolvedComments: PullRequestReviewItem[] = [];
   const verificationPlan: PullRequestReviewVerificationStep[] = [];
   const proposedMutations: PullRequestReviewMutationPlan[] = [];
+  const resolvableThreadIds = collectResolvableThreadIds(context);
+  const plannedThreadResolutions = new Set<string>();
 
   for (const comment of reviewBotComments) {
     switch (comment.verification?.status) {
@@ -124,7 +126,14 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
           evidence: comment.verification.evidence,
           plan: comment.verification.fixPlan
         });
-        proposedMutations.push(...threadMutationPlans(input.policy, comment, "after the verified fix is applied"));
+        proposedMutations.push(
+          ...threadMutationPlans(
+            input.policy,
+            comment,
+            "after the verified fix is applied",
+            canPlanThreadResolution(comment, resolvableThreadIds, plannedThreadResolutions)
+          )
+        );
         break;
       case "invalid":
         rejectedComments.push({
@@ -132,7 +141,14 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
           evidence: comment.verification.evidence,
           plan: comment.verification.rejectionReason
         });
-        proposedMutations.push(...threadMutationPlans(input.policy, comment, "after replying with rejection evidence"));
+        proposedMutations.push(
+          ...threadMutationPlans(
+            input.policy,
+            comment,
+            "after replying with rejection evidence",
+            canPlanThreadResolution(comment, resolvableThreadIds, plannedThreadResolutions)
+          )
+        );
         break;
       default:
         unresolvedComments.push({
@@ -159,6 +175,19 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
   };
 }
 
+function collectResolvableThreadIds(context: PullRequestReviewContext): Set<string> {
+  return new Set(
+    context.reviewThreads
+      .filter((thread) => !thread.isResolved)
+      .filter((thread) => {
+        const reviewBotComments = thread.comments.filter(isReviewBotComment);
+
+        return reviewBotComments.length > 0 && reviewBotComments.every((comment) => isHandled(comment.verification));
+      })
+      .map((thread) => thread.id)
+  );
+}
+
 function collectReviewBotComments(context: PullRequestReviewContext): PullRequestReviewComment[] {
   return [
     ...context.comments.filter(isReviewBotComment),
@@ -176,7 +205,8 @@ function isReviewBotComment(comment: PullRequestReviewComment): boolean {
 function threadMutationPlans(
   policy: WorkflowPolicy,
   comment: PullRequestReviewComment,
-  reason: string
+  reason: string,
+  resolveThread: boolean
 ): PullRequestReviewMutationPlan[] {
   return [
     {
@@ -186,7 +216,7 @@ function threadMutationPlans(
       decision: decideWorkflowAction(policy, "comment-on-review"),
       reason
     },
-    ...(comment.threadId
+    ...(resolveThread && comment.threadId
       ? [
           {
             commentId: comment.id,
@@ -198,4 +228,25 @@ function threadMutationPlans(
         ]
       : [])
   ];
+}
+
+function canPlanThreadResolution(
+  comment: PullRequestReviewComment,
+  resolvableThreadIds: ReadonlySet<string>,
+  plannedThreadResolutions: Set<string>
+): boolean {
+  if (
+    !comment.threadId ||
+    !resolvableThreadIds.has(comment.threadId) ||
+    plannedThreadResolutions.has(comment.threadId)
+  ) {
+    return false;
+  }
+
+  plannedThreadResolutions.add(comment.threadId);
+  return true;
+}
+
+function isHandled(verification: PullRequestReviewCommentVerification | undefined): boolean {
+  return verification?.status === "valid" || verification?.status === "invalid";
 }
