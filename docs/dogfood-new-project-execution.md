@@ -104,7 +104,8 @@ created.
 
 ## External Mutation Check
 
-Read-only GitHub checks before and after the execution both returned:
+Read-only GitHub repository checks before and after the execution both
+returned:
 
 ```text
 GraphQL: Could not resolve to a Repository with the name 'vnedyalk0v/pi-orc-dogfood-execution-20260625'. (repository)
@@ -113,6 +114,14 @@ GraphQL: Could not resolve to a Repository with the name 'vnedyalk0v/pi-orc-dogf
 The target repository was not created. No GitHub Project, label, issue, npm
 publish, GitHub release, git tag, repository setting change, PR creation,
 merge, commit, or push was performed for the sandbox target.
+
+The owner-level Project action was verified separately because Project
+creation is owner-scoped, not repository-scoped. This command returned no
+matching Project:
+
+```sh
+gh project list --owner vnedyalk0v --format json --limit 100 | jq '.projects[] | select(.title == "Dogfood Execution App")'
+```
 
 ## Problems Found
 
@@ -133,6 +142,7 @@ npm run build
 npm test
 node dist/cli/pi-orc.js new-project --intake /tmp/pi-orc-exec-dogfood.Ag4S56/intake.json
 gh repo view vnedyalk0v/pi-orc-dogfood-execution-20260625 --json nameWithOwner,url
+gh project list --owner vnedyalk0v --format json --limit 100 | jq '.projects[] | select(.title == "Dogfood Execution App")'
 ```
 
 Final branch verification:
