@@ -245,6 +245,17 @@ describe("pi-orc CLI", () => {
     expect(result.stdout).toContain("build failed");
   });
 
+  it("uses longer report fences when captured output contains backticks", async () => {
+    const result = await run(["verify", "--cmd", "npm test"], {
+      verificationRunner: fakeVerificationRunner({
+        "npm test": { exitCode: 0, stdout: "```md\n# heading\n```\n" }
+      })
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("````text\n```md\n# heading\n```\n````");
+  });
+
   it("rejects verify without explicit commands", async () => {
     const result = await run(["verify"]);
 

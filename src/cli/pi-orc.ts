@@ -684,7 +684,13 @@ function renderCapturedOutput(label: string, output: string, truncated: boolean)
 }
 
 function markdownCodeBlock(output: string): string {
-  return `\`\`\`text\n${output.endsWith("\n") ? output : `${output}\n`}\`\`\``;
+  const fence = "`".repeat(Math.max(3, longestBacktickRun(output) + 1));
+
+  return `${fence}text\n${output.endsWith("\n") ? output : `${output}\n`}${fence}`;
+}
+
+function longestBacktickRun(output: string): number {
+  return Math.max(0, ...Array.from(output.matchAll(/`+/g), (match) => match[0].length));
 }
 
 function renderReviewSyncResult(result: PullRequestReviewSyncResult): string {
