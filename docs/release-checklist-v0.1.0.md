@@ -1,7 +1,9 @@
 # v0.1.0 Release Checklist
 
 Issue: #65
+Release action issue: #74
 Date: 2026-06-24
+Updated: 2026-06-25
 
 ## Release Goal
 
@@ -33,11 +35,13 @@ Current readiness state:
 - Apache-2.0 license metadata is present
 - branch protection ruleset `pi-orc main protection` is active
 
-## Required Blockers Before Release
+## Required Gates Before Release
 
-- Decide whether v0.1.0 should be published to npm or only released on GitHub.
-- Re-run all verification commands after final release-readiness changes.
-- Merge the final release-readiness audit and close Issue #70.
+- Re-run all verification commands from a clean `main` checkout.
+- Confirm no `v0.1.0` tag, GitHub release, or npm package already exists.
+- Merge the Issue #74 release PR before creating release artifacts.
+- Get explicit owner approval before running the tag, GitHub release, or npm
+  publish commands.
 
 ## Optional Warnings
 
@@ -196,7 +200,7 @@ If the release will be GitHub-released:
 ```sh
 git tag -a v0.1.0 -m "v0.1.0"
 git push origin v0.1.0
-gh release create v0.1.0 --title "v0.1.0" --notes-file path/to/release-notes.md
+gh release create v0.1.0 --title "v0.1.0" --notes-file docs/release-notes-v0.1.0.md
 ```
 
 If version `0.1.0` must change before release, get explicit approval before any
@@ -230,12 +234,14 @@ approval both allow unpublish.
 
 ## Publish Decision
 
-No publish decision has been made yet.
+Issue #74 targets npm publish plus GitHub release for v0.1.0.
 
-Valid future outcomes:
+Release artifacts to create after the Issue #74 PR is merged and owner approval
+is explicit:
 
-- GitHub release only, no npm publish
-- npm publish plus GitHub release
-- no release until branch-protection risks are resolved
+- public npm package `pi-orc@0.1.0`
+- annotated git tag `v0.1.0`
+- GitHub release `v0.1.0` using `docs/release-notes-v0.1.0.md`
 
-Current task performed none of those release actions.
+No release automation is part of v0.1.0. This checklist update creates no
+release artifacts.
