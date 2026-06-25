@@ -146,6 +146,7 @@ Confirmed included:
 - `package/dist/index.js`
 - `package/dist/index.d.ts`
 - `package/dist/cli/pi-orc.js`
+- `package/skills/pi-orc-new-project/SKILL.md`
 - `package/templates/`
 - `package/docs/`
 - `package/README.md`
@@ -176,7 +177,8 @@ It verified:
 - `import('pi-orc')` works
 - Pi local package install works with `pi install -l`
 - Pi package listing works after approval
-- empty `pi` manifest is intentional for v0.1.0
+- explicit `pi.skills` manifest exposes `pi-orc-new-project`
+- no Pi extensions, prompts, or themes are exposed
 
 No package metadata change is needed for installability.
 
@@ -252,7 +254,8 @@ Operational blocker before release action:
 
 - First npm publish will claim the public `pi-orc` package name.
 - No changelog exists; GitHub release notes are acceptable for v0.1.0.
-- `pi` manifest is intentionally `{}` because v0.1.0 ships no Pi resources.
+- v0.1.0 ships one Pi skill resource, `pi-orc-new-project`; no prompts,
+  themes, or extensions are included.
 
 ## Not Performed
 

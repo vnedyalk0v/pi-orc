@@ -2,12 +2,17 @@
 
 Issue: #55
 Date: 2026-06-24
+Updated: 2026-06-25 for Issue #88
 
 ## Summary
 
-`pi-orc` was verified as packable, installable from a local npm tarball, importable, and runnable through its `pi-orc` binary.
+`pi-orc` was verified as packable, installable from a local npm tarball,
+importable, runnable through its `pi-orc` binary, and discoverable as a Pi
+Coding Agent package with one explicit skill resource.
 
-No package metadata change is needed for v0.1 readiness. The current `pi` manifest is intentionally empty because the package currently exposes no Pi extensions, skills, prompts, or themes.
+The current `pi` manifest intentionally exposes only
+`skills/pi-orc-new-project/SKILL.md`. The package does not expose Pi
+extensions, prompts, or themes.
 
 ## package.json Review
 
@@ -18,11 +23,13 @@ No package metadata change is needed for v0.1 readiness. The current `pi` manife
 - `main`: `./dist/index.js`
 - `types`: `./dist/index.d.ts`
 - `exports`: root import and types point at `dist/index.*`
-- `files`: `dist/`, `templates/`, `README.md`, `docs/`
-- `pi`: `{}`
+- `files`: `dist/`, `skills/pi-orc-new-project/`, `templates/`,
+  `README.md`, `docs/`
+- `pi.skills`: `./skills/pi-orc-new-project/SKILL.md`
 - `scripts`: `build`, `prepack`, `test`, `typecheck`
 
-The metadata matches the current package surface: one library export, one CLI binary, docs, and target repository templates.
+The metadata matches the current package surface: one library export, one CLI
+binary, one Pi skill resource, docs, and target repository templates.
 
 ## npm Pack Verification
 
@@ -39,13 +46,15 @@ npm pack --dry-run --json
 
 Result: pass.
 
-`npm pack --dry-run --json` rebuilt through `prepack` and reported 54 entries after adding this report.
+`npm pack --dry-run --json` rebuilt through `prepack` and reported 66 entries
+after adding the Pi skill and dogfood report.
 
 Confirmed included:
 
 - `package/dist/index.js`
 - `package/dist/index.d.ts`
 - `package/dist/cli/pi-orc.js`
+- `package/skills/pi-orc-new-project/SKILL.md`
 - `package/templates/`
 - `package/README.md`
 - `package/docs/`
@@ -87,8 +96,8 @@ npm init -y
 npm install /Users/vnedyalk0v/Projects/Personal/pi-orc/pi-orc-0.1.0.tgz
 ./node_modules/.bin/pi-orc --help
 node --input-type=module -e "import('pi-orc').then(m => console.log(JSON.stringify(m.packageInfo)))"
-PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 /Users/vnedyalk0v/Projects/Personal/pi-orc/node_modules/.bin/pi install -l "$tmp/pkg/package"
-PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 /Users/vnedyalk0v/Projects/Personal/pi-orc/node_modules/.bin/pi list --approve
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi install -l ../pkg/package
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi list --approve
 ```
 
 Result: pass.
@@ -98,7 +107,8 @@ Findings:
 - npm installed the local tarball into a clean temporary project.
 - `./node_modules/.bin/pi-orc --help` worked from the installed package.
 - `import('pi-orc')` returned `packageInfo`.
-- `pi install -l <extracted-package>` added the local package to project settings.
+- `pi install -l <extracted-package>` added the local package to project
+  settings.
 - `pi list --approve` reported the project package path.
 - `pi list` without `--approve` reported no packages, which matches Pi's project trust behavior.
 
@@ -125,7 +135,12 @@ const [packageRoot, cwd, agentDir] = process.argv.slice(2);
 const settingsManager = SettingsManager.inMemory();
 const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
 const resolved = await packageManager.resolveExtensionSources([packageRoot], { temporary: true });
-console.log(Object.fromEntries(Object.entries(resolved).map(([key, value]) => [key, value.length])));
+console.log(JSON.stringify({
+  extensions: resolved.extensions.length,
+  skills: resolved.skills.map((skill) => skill.path.replace(packageRoot, "package")),
+  prompts: resolved.prompts.length,
+  themes: resolved.themes.length
+}, null, 2));
 ```
 
 Result:
@@ -133,7 +148,9 @@ Result:
 ```json
 {
   "extensions": 0,
-  "skills": 0,
+  "skills": [
+    "package/skills/pi-orc-new-project/SKILL.md"
+  ],
   "prompts": 0,
   "themes": 0
 }
@@ -141,20 +158,29 @@ Result:
 
 ## Decision on pi Manifest
 
-Keep the current `pi` manifest as:
+Keep the current `pi` manifest explicit:
 
 ```json
-{}
+{
+  "skills": [
+    "./skills/pi-orc-new-project/SKILL.md"
+  ]
+}
 ```
 
-Reason: v0.1 currently publishes workflow library code, a dry-run CLI, docs, and target repository templates, but no Pi resources. An explicit empty manifest prevents accidental conventional-directory discovery if package contents later include directories named `skills`, `prompts`, `themes`, or `extensions` for non-resource reasons.
+Reason: v0.1 intentionally publishes one Pi skill for new-project bootstrap
+work. Explicit metadata prevents accidental conventional-directory discovery if
+package contents later include directories named `prompts`, `themes`, or
+`extensions`, or extra skill directories, for non-resource reasons.
 
-Add explicit `pi` entries only when the package intentionally ships Pi resources.
+Add more explicit `pi` entries only when the package intentionally ships more
+Pi resources.
 
 ## Scope Confirmation
 
 - No npm publish was performed.
 - No GitHub release was created.
-- No package metadata was changed.
-- No new workflow feature was implemented.
+- Package metadata now exposes exactly one Pi skill resource.
+- No prompts, themes, UI extensions, release automation, autonomous merge
+  behavior, or generic sub-agent framework behavior was added.
 - No repository settings were changed.
