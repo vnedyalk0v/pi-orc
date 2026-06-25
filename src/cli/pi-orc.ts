@@ -12,6 +12,7 @@ import {
   writeFileSync
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -484,12 +485,38 @@ function runShellVerificationCommand(request: VerificationCommandRequest): Promi
     let stdoutTruncated = false;
     let stderrTruncated = false;
     let resolved = false;
+    let decodersFlushed = false;
+    const stdoutDecoder = new StringDecoder("utf8");
+    const stderrDecoder = new StringDecoder("utf8");
+
+    const appendStdout = (chunk: string) => {
+      const captured = appendCapturedOutput(stdout, chunk, request.maxOutputCharacters);
+      stdout = captured.output;
+      stdoutTruncated ||= captured.truncated;
+    };
+
+    const appendStderr = (chunk: string) => {
+      const captured = appendCapturedOutput(stderr, chunk, request.maxOutputCharacters);
+      stderr = captured.output;
+      stderrTruncated ||= captured.truncated;
+    };
+
+    const flushDecoders = () => {
+      if (decodersFlushed) {
+        return;
+      }
+
+      decodersFlushed = true;
+      appendStdout(stdoutDecoder.end());
+      appendStderr(stderrDecoder.end());
+    };
 
     const resolveOnce = (exitCode: number) => {
       if (resolved) {
         return;
       }
 
+      flushDecoders();
       resolved = true;
       resolveCommand({
         command: request.command,
@@ -504,21 +531,16 @@ function runShellVerificationCommand(request: VerificationCommandRequest): Promi
     };
 
     child.stdout?.on("data", (chunk: Buffer) => {
-      const captured = appendCapturedOutput(stdout, chunk.toString("utf8"), request.maxOutputCharacters);
-      stdout = captured.output;
-      stdoutTruncated ||= captured.truncated;
+      appendStdout(stdoutDecoder.write(chunk));
     });
 
     child.stderr?.on("data", (chunk: Buffer) => {
-      const captured = appendCapturedOutput(stderr, chunk.toString("utf8"), request.maxOutputCharacters);
-      stderr = captured.output;
-      stderrTruncated ||= captured.truncated;
+      appendStderr(stderrDecoder.write(chunk));
     });
 
     child.on("error", (error) => {
-      const captured = appendCapturedOutput(stderr, error.message, request.maxOutputCharacters);
-      stderr = captured.output;
-      stderrTruncated ||= captured.truncated;
+      flushDecoders();
+      appendStderr(error.message);
       resolveOnce(127);
     });
 

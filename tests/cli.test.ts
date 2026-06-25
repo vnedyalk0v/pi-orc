@@ -269,6 +269,15 @@ describe("pi-orc CLI", () => {
     expect(result.stdout).toContain("````text\n```md\n# heading\n```\n````");
   });
 
+  it("preserves UTF-8 output split across shell output chunks", async () => {
+    const command = `"${process.execPath}" -e "const b = Buffer.from([0xcf, 0x80]); process.stdout.write(b.subarray(0, 1)); setTimeout(() => process.stdout.write(b.subarray(1)), 0);"`;
+    const result = await run(["verify", "--cmd", command]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("π");
+    expect(result.stdout).not.toContain("�");
+  });
+
   it("rejects verify without explicit commands", async () => {
     const result = await run(["verify"]);
 
