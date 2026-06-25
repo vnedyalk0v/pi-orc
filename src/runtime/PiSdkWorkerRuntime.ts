@@ -101,7 +101,7 @@ export class PiSdkWorkerRuntime implements WorkerRuntime {
         );
       }
 
-      return parseWorkerOutput(handoff.runId, output);
+      return parseWorkerOutput(handoff, output);
     } catch (error) {
       return runtimeResult(
         handoff.runId,
@@ -139,13 +139,13 @@ function unwrapSession(result: PiSdkAgentSession | { session: PiSdkAgentSession 
   return "session" in result ? result.session : result;
 }
 
-function parseWorkerOutput(runId: string, output: string): WorkerRunResult {
+function parseWorkerOutput(handoff: WorkerHandoff, output: string): WorkerRunResult {
   try {
     const result = WorkerRunResultSchema.safeParse(JSON.parse(output));
 
     if (!result.success) {
       return runtimeResult(
-        runId,
+        handoff.runId,
         "failure",
         "SDK worker output failed validation.",
         "runtime.invalid_worker_output",
@@ -154,9 +154,9 @@ function parseWorkerOutput(runId: string, output: string): WorkerRunResult {
       );
     }
 
-    if (result.data.runId !== runId) {
+    if (result.data.runId !== handoff.runId) {
       return runtimeResult(
-        runId,
+        handoff.runId,
         "failure",
         "SDK worker output used the wrong run id.",
         "runtime.invalid_worker_output",
@@ -165,10 +165,27 @@ function parseWorkerOutput(runId: string, output: string): WorkerRunResult {
       );
     }
 
+    if (result.data.status === "success") {
+      const missingFiles = handoff.expectedOutput.requiredFiles.filter(
+        (path) => !result.data.artifacts.some((artifact) => artifact.kind === "durable" && artifact.path === path)
+      );
+
+      if (missingFiles.length > 0) {
+        return runtimeResult(
+          handoff.runId,
+          "failure",
+          "SDK worker output missed required files.",
+          "runtime.output_contract_mismatch",
+          "output_contract_mismatch",
+          `Worker success is missing required durable artifact(s): ${missingFiles.join(", ")}`
+        );
+      }
+    }
+
     return result.data;
   } catch (error) {
     return runtimeResult(
-      runId,
+      handoff.runId,
       "failure",
       "SDK worker output was not valid JSON.",
       "runtime.invalid_worker_output",

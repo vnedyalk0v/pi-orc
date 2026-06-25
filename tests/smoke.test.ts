@@ -164,6 +164,46 @@ describe("PiSdkWorkerRuntime", () => {
     expect(result.errors[0]?.code).toBe("invalid_worker_output");
   });
 
+  it("returns failure when success output misses required durable artifacts", async () => {
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => ({
+        prompt: async () => {},
+        getLastAssistantText: () =>
+          JSON.stringify({
+            runId: "smoke-run",
+            status: "success",
+            summary: "Done but missing file.",
+            artifacts: [],
+            events: [
+              {
+                type: "worker.completed",
+                message: "Worker completed.",
+                timestamp: "2026-06-25T00:00:00.000Z"
+              }
+            ],
+            errors: []
+          })
+      })
+    });
+    const result = await runtime.run({
+      profile,
+      handoff: {
+        ...handoff,
+        expectedOutput: {
+          requiredFiles: ["docs/result.md"],
+          format: "markdown"
+        }
+      }
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.events[0]?.type).toBe("runtime.output_contract_mismatch");
+    expect(result.errors[0]).toEqual({
+      code: "output_contract_mismatch",
+      message: "Worker success is missing required durable artifact(s): docs/result.md"
+    });
+  });
+
   it("returns failure when SDK execution fails", async () => {
     const runtime = new PiSdkWorkerRuntime({
       createAgentSession: async () => {
