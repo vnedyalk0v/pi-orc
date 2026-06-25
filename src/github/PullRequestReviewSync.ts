@@ -180,9 +180,10 @@ function collectResolvableThreadIds(context: PullRequestReviewContext): Set<stri
     context.reviewThreads
       .filter((thread) => !thread.isResolved)
       .filter((thread) => {
-        const reviewBotComments = thread.comments.filter(isReviewBotComment);
-
-        return reviewBotComments.length > 0 && reviewBotComments.every((comment) => isHandled(comment.verification));
+        return (
+          thread.comments.length > 0 &&
+          thread.comments.every((comment) => isReviewBotComment(comment) && isHandled(comment.verification))
+        );
       })
       .map((thread) => thread.id)
   );

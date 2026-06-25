@@ -205,4 +205,45 @@ describe("syncPullRequestReview", () => {
     expect(result.unresolvedComments.map((comment) => comment.comment.id)).toEqual(["comment-5"]);
     expect(result.proposedMutations.map((mutation) => mutation.mutation)).toEqual(["comment-on-review"]);
   });
+
+  it("does not resolve a thread with non-bot follow-up comments", async () => {
+    const result = await syncPullRequestReview({
+      repository: "owner/repo",
+      pullRequestNumber: 7,
+      policy: defaultWorkflowPolicies.assisted,
+      adapter: fakeAdapter({
+        ...baseContext,
+        reviewThreads: [
+          {
+            id: "thread-4",
+            isResolved: false,
+            comments: [
+              {
+                id: "comment-6",
+                threadId: "thread-4",
+                source: "review-bot",
+                author: "chatgpt-codex-connector[bot]",
+                body: "This branch misses the expected policy gate.",
+                verification: {
+                  status: "valid",
+                  evidence: "The policy decision is missing.",
+                  fixPlan: "Add the missing policy decision before mutating GitHub."
+                }
+              },
+              {
+                id: "comment-7",
+                threadId: "thread-4",
+                source: "human",
+                author: "octocat",
+                body: "Please also confirm the related workflow step."
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expect(result.verifiedValidComments.map((comment) => comment.comment.id)).toEqual(["comment-6"]);
+    expect(result.proposedMutations.map((mutation) => mutation.mutation)).toEqual(["comment-on-review"]);
+  });
 });
