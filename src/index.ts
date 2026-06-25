@@ -26,7 +26,9 @@ export {
   workflowActionCategories,
   WorkflowArtifactSchema,
   workflowModes,
+  type PiSdkAgentSession,
   type PiSdkSessionFactory,
+  type PiSdkSessionFactoryOptions,
   type PiSdkWorkerRuntimeOptions
 } from "./runtime/index.js";
 export type {

@@ -1,4 +1,10 @@
-export { PiSdkWorkerRuntime, type PiSdkSessionFactory, type PiSdkWorkerRuntimeOptions } from "./PiSdkWorkerRuntime.js";
+export {
+  PiSdkWorkerRuntime,
+  type PiSdkAgentSession,
+  type PiSdkSessionFactory,
+  type PiSdkSessionFactoryOptions,
+  type PiSdkWorkerRuntimeOptions
+} from "./PiSdkWorkerRuntime.js";
 export {
   decideWorkflowAction,
   defaultWorkflowPolicies,
