@@ -626,8 +626,10 @@ function isSafeRelativeReportPath(path: string): boolean {
 }
 
 function isLocalOnlyReportPath(path: string): boolean {
+  const normalizedPath = path.toLowerCase();
+
   return [".ai-workflow/runs/", ".ai-workflow/cache/", ".ai-workflow/tmp/"].some(
-    (root) => path === root.slice(0, -1) || path.startsWith(root)
+    (root) => normalizedPath === root.slice(0, -1) || normalizedPath.startsWith(root)
   );
 }
 

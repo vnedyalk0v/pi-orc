@@ -337,6 +337,15 @@ describe("pi-orc CLI", () => {
     expect(result.stderr).toContain("report path is local-only workflow state");
   });
 
+  it("rejects case variants of local-only verify report paths", async () => {
+    const result = await run(["verify", "--cmd", "npm test", "--report", ".AI-WORKFLOW/runs/verification.md"], {
+      verificationRunner: fakeVerificationRunner()
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("report path is local-only workflow state");
+  });
+
   it("rejects verify reports that point at an existing directory before running commands", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pi-orc-verify-dir-"));
     let called = false;
