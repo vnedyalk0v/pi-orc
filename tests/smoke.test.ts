@@ -80,7 +80,17 @@ describe("PiSdkWorkerRuntime", () => {
           prompt: async (text) => {
             prompted = text;
           },
-          getLastAssistantText: () => JSON.stringify(workerResult),
+          messages: [
+            {
+              role: "assistant",
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(workerResult)
+                }
+              ]
+            }
+          ],
           dispose: async () => {
             disposed = true;
           }

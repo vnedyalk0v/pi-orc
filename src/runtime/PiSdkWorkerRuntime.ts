@@ -10,8 +10,14 @@ import {
 
 export interface PiSdkAgentSession {
   prompt(text: string, options?: { expandPromptTemplates?: boolean; source?: string }): Promise<void>;
-  getLastAssistantText(): string | undefined;
+  messages?: readonly PiSdkAgentMessage[];
+  getLastAssistantText?: () => string | undefined;
   dispose?: () => void | Promise<void>;
+}
+
+interface PiSdkAgentMessage {
+  role?: string;
+  content?: unknown;
 }
 
 export interface PiSdkSessionFactoryOptions {
@@ -88,7 +94,7 @@ export class PiSdkWorkerRuntime implements WorkerRuntime {
         source: "sdk"
       });
 
-      const output = session.getLastAssistantText();
+      const output = getAssistantText(session);
 
       if (!output) {
         return runtimeResult(
@@ -137,6 +143,50 @@ function renderWorkerPrompt(profile: WorkerProfile, handoff: WorkerHandoff): str
 
 function unwrapSession(result: PiSdkAgentSession | { session: PiSdkAgentSession }): PiSdkAgentSession {
   return "session" in result ? result.session : result;
+}
+
+function getAssistantText(session: PiSdkAgentSession): string | undefined {
+  return getAssistantTextFromMessages(session.messages) ?? session.getLastAssistantText?.();
+}
+
+function getAssistantTextFromMessages(messages: readonly PiSdkAgentMessage[] | undefined): string | undefined {
+  if (!messages) {
+    return undefined;
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (!message) {
+      continue;
+    }
+
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      continue;
+    }
+
+    const text = message.content
+      .filter((content): content is { type: "text"; text: string } => isTextContent(content))
+      .map((content) => content.text)
+      .join("");
+
+    if (text.trim()) {
+      return text.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function isTextContent(content: unknown): content is { type: "text"; text: string } {
+  return (
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    content.type === "text" &&
+    "text" in content &&
+    typeof content.text === "string"
+  );
 }
 
 function parseWorkerOutput(handoff: WorkerHandoff, output: string): WorkerRunResult {
