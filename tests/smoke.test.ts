@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { packageInfo, PiSdkWorkerRuntime } from "../src/index.js";
+import {
+  defaultPlanningWorkerProfile,
+  defaultVerificationWorkerProfile,
+  packageInfo,
+  PiSdkWorkerRuntime,
+  WorkerProfileSchema
+} from "../src/index.js";
 import type { PiSdkSessionFactoryOptions, WorkerHandoff, WorkerProfile, WorkerRunResult } from "../src/index.js";
 
 const profile: WorkerProfile = {
@@ -145,6 +151,81 @@ describe("PiSdkWorkerRuntime", () => {
     expect(result.events[0]?.type).toBe("runtime.profile_mismatch");
     expect(result.errors[0]?.code).toBe("profile_mismatch");
     expect(called).toBe(false);
+  });
+
+  it("runs exported planning and verification profiles with matching handoffs", async () => {
+    for (const workerProfile of [defaultPlanningWorkerProfile, defaultVerificationWorkerProfile]) {
+      const parsedProfile = WorkerProfileSchema.parse(workerProfile);
+      const expectedPath = parsedProfile.outputContract.requiredFiles[0];
+      const profileHandoff: WorkerHandoff = {
+        version: "1",
+        runId: `run-${parsedProfile.id}`,
+        workerId: parsedProfile.id,
+        objective: "Exercise an exported default worker profile.",
+        relevantFiles: [],
+        constraints: ["Do not mutate GitHub."],
+        decisions: [],
+        risks: [],
+        expectedOutput: parsedProfile.outputContract,
+        forbiddenActions: ["commit", "push", "create pull request", "resolve review thread"]
+      };
+      const workerResult: WorkerRunResult = {
+        runId: profileHandoff.runId,
+        status: "success",
+        summary: "Worker produced verified output.",
+        artifacts: expectedPath
+          ? [
+              {
+                path: expectedPath,
+                kind: "durable",
+                verified: true
+              }
+            ]
+          : [],
+        events: [
+          {
+            type: "worker.completed",
+            message: "Worker completed.",
+            timestamp: "2026-06-25T00:00:00.000Z"
+          }
+        ],
+        errors: []
+      };
+      const runtime = new PiSdkWorkerRuntime({
+        createAgentSession: async () => ({
+          prompt: async () => {},
+          getLastAssistantText: () => JSON.stringify(workerResult)
+        })
+      });
+
+      await expect(runtime.run({ profile: parsedProfile, handoff: profileHandoff })).resolves.toEqual(workerResult);
+    }
+  });
+
+  it("rejects exported profiles when the handoff worker id does not match", async () => {
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => {
+        throw new Error("must not start");
+      }
+    });
+    const result = await runtime.run({
+      profile: defaultVerificationWorkerProfile,
+      handoff: {
+        version: "1",
+        runId: "profile-mismatch",
+        workerId: defaultPlanningWorkerProfile.id,
+        objective: "Mismatch worker ids.",
+        relevantFiles: [],
+        constraints: [],
+        decisions: [],
+        risks: [],
+        expectedOutput: defaultPlanningWorkerProfile.outputContract,
+        forbiddenActions: []
+      }
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.errors[0]?.code).toBe("profile_mismatch");
   });
 
   it("ignores stale assistant output from reused SDK sessions", async () => {

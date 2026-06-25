@@ -103,6 +103,9 @@ Main exports include:
 - `generateBootstrapPlan`
 - `renderBootstrapPlanMarkdown`
 - `NewProjectIntakeSchema`
+- `defaultPlanningWorkerProfile`
+- `defaultVerificationWorkerProfile`
+- `defaultWorkerProfiles`
 - `defaultWorkflowPolicies`
 - `decideWorkflowAction`
 - `PiSdkWorkerRuntime`
@@ -110,6 +113,11 @@ Main exports include:
 
 The package also exports the related TypeScript types for worker profiles,
 handoffs, workflow policies, bootstrap plans, and GitHub actions.
+
+The default planning and verification profiles are clean-context worker
+profiles. They allow only scoped planning/report output, deny GitHub mutation,
+commit, push, pull request, and review-thread actions, and do not implement
+workers themselves.
 
 ## Project direction
 
