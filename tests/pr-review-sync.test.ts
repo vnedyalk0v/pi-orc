@@ -246,4 +246,53 @@ describe("syncPullRequestReview", () => {
     expect(result.verifiedValidComments.map((comment) => comment.comment.id)).toEqual(["comment-6"]);
     expect(result.proposedMutations.map((mutation) => mutation.mutation)).toEqual(["comment-on-review"]);
   });
+
+  it("plans thread resolution after all handled comment replies", async () => {
+    const result = await syncPullRequestReview({
+      repository: "owner/repo",
+      pullRequestNumber: 7,
+      policy: defaultWorkflowPolicies.assisted,
+      adapter: fakeAdapter({
+        ...baseContext,
+        reviewThreads: [
+          {
+            id: "thread-5",
+            isResolved: false,
+            comments: [
+              {
+                id: "comment-8",
+                threadId: "thread-5",
+                source: "review-bot",
+                author: "chatgpt-codex-connector[bot]",
+                body: "This needs a guard.",
+                verification: {
+                  status: "valid",
+                  evidence: "The guard is missing.",
+                  fixPlan: "Add the guard."
+                }
+              },
+              {
+                id: "comment-9",
+                threadId: "thread-5",
+                source: "review-bot",
+                author: "chatgpt-codex-connector[bot]",
+                body: "This export already exists.",
+                verification: {
+                  status: "invalid",
+                  evidence: "The export exists in src/index.ts.",
+                  rejectionReason: "Reply with the export evidence."
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expect(result.proposedMutations.map((mutation) => mutation.mutation)).toEqual([
+      "comment-on-review",
+      "comment-on-review",
+      "resolve-review-thread"
+    ]);
+  });
 });

@@ -116,7 +116,6 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
   const verificationPlan: PullRequestReviewVerificationStep[] = [];
   const proposedMutations: PullRequestReviewMutationPlan[] = [];
   const resolvableThreadIds = collectResolvableThreadIds(context);
-  const plannedThreadResolutions = new Set<string>();
 
   for (const comment of reviewBotComments) {
     switch (comment.verification?.status) {
@@ -126,14 +125,7 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
           evidence: comment.verification.evidence,
           plan: comment.verification.fixPlan
         });
-        proposedMutations.push(
-          ...threadMutationPlans(
-            input.policy,
-            comment,
-            "after the verified fix is applied",
-            canPlanThreadResolution(comment, resolvableThreadIds, plannedThreadResolutions)
-          )
-        );
+        proposedMutations.push(...threadMutationPlans(input.policy, comment, "after the verified fix is applied"));
         break;
       case "invalid":
         rejectedComments.push({
@@ -141,14 +133,7 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
           evidence: comment.verification.evidence,
           plan: comment.verification.rejectionReason
         });
-        proposedMutations.push(
-          ...threadMutationPlans(
-            input.policy,
-            comment,
-            "after replying with rejection evidence",
-            canPlanThreadResolution(comment, resolvableThreadIds, plannedThreadResolutions)
-          )
-        );
+        proposedMutations.push(...threadMutationPlans(input.policy, comment, "after replying with rejection evidence"));
         break;
       default:
         unresolvedComments.push({
@@ -163,6 +148,8 @@ export async function syncPullRequestReview(input: PullRequestReviewSyncInput): 
         });
     }
   }
+
+  proposedMutations.push(...threadResolutionPlans(input.policy, context, resolvableThreadIds));
 
   return {
     context,
@@ -206,8 +193,7 @@ function isReviewBotComment(comment: PullRequestReviewComment): boolean {
 function threadMutationPlans(
   policy: WorkflowPolicy,
   comment: PullRequestReviewComment,
-  reason: string,
-  resolveThread: boolean
+  reason: string
 ): PullRequestReviewMutationPlan[] {
   return [
     {
@@ -216,36 +202,32 @@ function threadMutationPlans(
       mutation: "comment-on-review",
       decision: decideWorkflowAction(policy, "comment-on-review"),
       reason
-    },
-    ...(resolveThread && comment.threadId
-      ? [
-          {
-            commentId: comment.id,
-            threadId: comment.threadId,
-            mutation: "resolve-review-thread" as const,
-            decision: decideWorkflowAction(policy, "resolve-review-thread"),
-            reason
-          }
-        ]
-      : [])
+    }
   ];
 }
 
-function canPlanThreadResolution(
-  comment: PullRequestReviewComment,
-  resolvableThreadIds: ReadonlySet<string>,
-  plannedThreadResolutions: Set<string>
-): boolean {
-  if (
-    !comment.threadId ||
-    !resolvableThreadIds.has(comment.threadId) ||
-    plannedThreadResolutions.has(comment.threadId)
-  ) {
-    return false;
-  }
+function threadResolutionPlans(
+  policy: WorkflowPolicy,
+  context: PullRequestReviewContext,
+  resolvableThreadIds: ReadonlySet<string>
+): PullRequestReviewMutationPlan[] {
+  return context.reviewThreads
+    .filter((thread) => resolvableThreadIds.has(thread.id))
+    .flatMap((thread) => {
+      const comment = thread.comments[0];
 
-  plannedThreadResolutions.add(comment.threadId);
-  return true;
+      return comment
+        ? [
+            {
+              commentId: comment.id,
+              threadId: thread.id,
+              mutation: "resolve-review-thread" as const,
+              decision: decideWorkflowAction(policy, "resolve-review-thread"),
+              reason: "after all replies in the thread are planned"
+            }
+          ]
+        : [];
+    });
 }
 
 function isHandled(verification: PullRequestReviewCommentVerification | undefined): boolean {
