@@ -46,7 +46,7 @@ describe("syncPullRequestReview", () => {
     expect(result.proposedMutations).toEqual([]);
   });
 
-  it("separates verified valid comments and gates reply and thread resolution", async () => {
+  it("separates verified valid comments and gates the post-fix reply", async () => {
     const result = await syncPullRequestReview({
       repository: "owner/repo",
       pullRequestNumber: 7,
@@ -81,8 +81,7 @@ describe("syncPullRequestReview", () => {
     expect(result.rejectedComments).toEqual([]);
     expect(result.unresolvedComments).toEqual([]);
     expect(result.proposedMutations.map((mutation) => [mutation.mutation, mutation.decision.status])).toEqual([
-      ["comment-on-review", "requires-confirmation"],
-      ["resolve-review-thread", "requires-confirmation"]
+      ["comment-on-review", "requires-confirmation"]
     ]);
   });
 
@@ -247,7 +246,7 @@ describe("syncPullRequestReview", () => {
     expect(result.proposedMutations.map((mutation) => mutation.mutation)).toEqual(["comment-on-review"]);
   });
 
-  it("plans thread resolution after all handled comment replies", async () => {
+  it("plans thread resolution after all rejected comment replies", async () => {
     const result = await syncPullRequestReview({
       repository: "owner/repo",
       pullRequestNumber: 7,
@@ -266,9 +265,9 @@ describe("syncPullRequestReview", () => {
                 author: "chatgpt-codex-connector[bot]",
                 body: "This needs a guard.",
                 verification: {
-                  status: "valid",
-                  evidence: "The guard is missing.",
-                  fixPlan: "Add the guard."
+                  status: "invalid",
+                  evidence: "The guard already exists.",
+                  rejectionReason: "Reply with the guard evidence."
                 }
               },
               {

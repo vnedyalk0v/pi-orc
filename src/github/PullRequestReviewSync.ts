@@ -169,7 +169,7 @@ function collectResolvableThreadIds(context: PullRequestReviewContext): Set<stri
       .filter((thread) => {
         return (
           thread.comments.length > 0 &&
-          thread.comments.every((comment) => isReviewBotComment(comment) && isHandled(comment.verification))
+          thread.comments.every((comment) => isReviewBotComment(comment) && isRejected(comment.verification))
         );
       })
       .map((thread) => thread.id)
@@ -230,6 +230,6 @@ function threadResolutionPlans(
     });
 }
 
-function isHandled(verification: PullRequestReviewCommentVerification | undefined): boolean {
-  return verification?.status === "valid" || verification?.status === "invalid";
+function isRejected(verification: PullRequestReviewCommentVerification | undefined): boolean {
+  return verification?.status === "invalid";
 }
