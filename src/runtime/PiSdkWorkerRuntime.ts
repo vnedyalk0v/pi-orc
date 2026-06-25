@@ -92,11 +92,12 @@ export class PiSdkWorkerRuntime implements WorkerRuntime {
           prompt
         })
       );
+      const messageStartIndex = session.messages?.length;
       await session.prompt(prompt, {
         expandPromptTemplates: false
       });
 
-      const output = getAssistantText(session);
+      const output = getAssistantText(session, messageStartIndex);
 
       if (!output) {
         return runtimeResult(
@@ -147,16 +148,27 @@ function unwrapSession(result: PiSdkAgentSession | { session: PiSdkAgentSession 
   return "session" in result ? result.session : result;
 }
 
-function getAssistantText(session: PiSdkAgentSession): string | undefined {
-  return getAssistantTextFromMessages(session.messages) ?? session.getLastAssistantText?.();
+function getAssistantText(session: PiSdkAgentSession, messageStartIndex: number | undefined): string | undefined {
+  const output = getAssistantTextFromMessages(session.messages, messageStartIndex);
+
+  if (output || session.messages) {
+    return output;
+  }
+
+  return session.getLastAssistantText?.();
 }
 
-function getAssistantTextFromMessages(messages: readonly PiSdkAgentMessage[] | undefined): string | undefined {
+function getAssistantTextFromMessages(
+  messages: readonly PiSdkAgentMessage[] | undefined,
+  messageStartIndex: number | undefined
+): string | undefined {
   if (!messages) {
     return undefined;
   }
 
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
+  const firstCurrentMessageIndex = messageStartIndex ?? 0;
+
+  for (let index = messages.length - 1; index >= firstCurrentMessageIndex; index -= 1) {
     const message = messages[index];
 
     if (!message) {

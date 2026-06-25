@@ -73,6 +73,7 @@ describe("PiSdkWorkerRuntime", () => {
     let prompted = "";
     let promptOptions: unknown;
     let disposed = false;
+    const messages: Array<{ role: "assistant"; content: Array<{ type: "text"; text: string }> }> = [];
     const runtime = new PiSdkWorkerRuntime({
       createAgentSession: async (options) => {
         factoryOptions = options;
@@ -81,9 +82,7 @@ describe("PiSdkWorkerRuntime", () => {
           prompt: async (text, options) => {
             prompted = text;
             promptOptions = options;
-          },
-          messages: [
-            {
+            messages.push({
               role: "assistant",
               content: [
                 {
@@ -91,8 +90,9 @@ describe("PiSdkWorkerRuntime", () => {
                   text: JSON.stringify(workerResult)
                 }
               ]
-            }
-          ],
+            });
+          },
+          messages,
           dispose: async () => {
             disposed = true;
           }
@@ -145,6 +145,49 @@ describe("PiSdkWorkerRuntime", () => {
     expect(result.events[0]?.type).toBe("runtime.profile_mismatch");
     expect(result.errors[0]?.code).toBe("profile_mismatch");
     expect(called).toBe(false);
+  });
+
+  it("ignores stale assistant output from reused SDK sessions", async () => {
+    const staleResult: WorkerRunResult = {
+      runId: "smoke-run",
+      status: "success",
+      summary: "Stale output from a previous turn.",
+      artifacts: [],
+      events: [
+        {
+          type: "worker.completed",
+          message: "Worker completed.",
+          timestamp: "2026-06-25T00:00:00.000Z"
+        }
+      ],
+      errors: []
+    };
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(staleResult)
+          }
+        ]
+      }
+    ];
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => ({
+        prompt: async () => {},
+        messages,
+        getLastAssistantText: () => JSON.stringify(staleResult)
+      })
+    });
+    const result = await runtime.run({
+      profile,
+      handoff
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.events[0]?.type).toBe("runtime.missing_worker_output");
+    expect(result.errors[0]?.code).toBe("missing_worker_output");
   });
 
   it("returns failure when SDK output does not match WorkerRunResultSchema", async () => {
