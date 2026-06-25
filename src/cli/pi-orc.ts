@@ -662,7 +662,9 @@ function renderVerificationReport(result: VerificationWorkflowResult): string {
 
 function renderVerificationCheck(check: VerificationCommandResult, index: number): string[] {
   return [
-    `### ${index + 1}. \`${check.command}\``,
+    `### ${index + 1}. Command`,
+    "command:",
+    markdownCodeBlock(check.command),
     `- result: ${check.exitCode === 0 ? "pass" : "fail"}`,
     `- exit code: ${check.exitCode}`,
     `- started: ${check.startedAt}`,

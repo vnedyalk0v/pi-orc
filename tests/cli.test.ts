@@ -223,8 +223,9 @@ describe("pi-orc CLI", () => {
     expect(result.stdout).toContain("# Verification Report");
     expect(result.stdout).toContain("Status: pass");
     expect(result.stdout).toContain("Artifact: stdout only; no durable report written");
-    expect(result.stdout).toContain("### 1. `npm test`");
-    expect(result.stdout).toContain("### 2. `npm run build`");
+    expect(result.stdout).toContain("### 1. Command");
+    expect(result.stdout).toContain("```text\nnpm test\n```");
+    expect(result.stdout).toContain("```text\nnpm run build\n```");
     expect(result.stdout).toContain("```text\n  padded  \n```");
     expect(result.stdout).toContain("Raw local artifacts: not written");
   });
@@ -240,9 +241,21 @@ describe("pi-orc CLI", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Status: fail");
-    expect(result.stdout).toContain("### 2. `npm run build`");
+    expect(result.stdout).toContain("```text\nnpm run build\n```");
     expect(result.stdout).toContain("- exit code: 2");
     expect(result.stdout).toContain("build failed");
+  });
+
+  it("uses fenced command text when commands contain backticks", async () => {
+    const command = "echo ```";
+    const result = await run(["verify", "--cmd", command], {
+      verificationRunner: fakeVerificationRunner({
+        [command]: { exitCode: 0, stdout: "ok\n" }
+      })
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("````text\necho ```\n````");
   });
 
   it("uses longer report fences when captured output contains backticks", async () => {
