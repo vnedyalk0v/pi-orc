@@ -676,7 +676,7 @@ function renderVerificationReport(result: VerificationWorkflowResult): string {
     result.reportPath
       ? `Artifact: verified durable evidence at \`${result.reportPath}\``
       : "Artifact: stdout only; no durable report written",
-    "Raw local artifacts: not written",
+    "pi-orc raw local artifacts: not written; requested commands may write their own files",
     "",
     "## Checks",
     ...result.checks.flatMap((check, index) => renderVerificationCheck(check, index)),

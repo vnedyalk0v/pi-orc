@@ -227,7 +227,7 @@ describe("pi-orc CLI", () => {
     expect(result.stdout).toContain("```text\nnpm test\n```");
     expect(result.stdout).toContain("```text\nnpm run build\n```");
     expect(result.stdout).toContain("```text\n  padded  \n```");
-    expect(result.stdout).toContain("Raw local artifacts: not written");
+    expect(result.stdout).toContain("pi-orc raw local artifacts: not written; requested commands may write their own files");
   });
 
   it("returns failure when a verification command exits non-zero", async () => {
