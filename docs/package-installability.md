@@ -3,6 +3,7 @@
 Issue: #55
 Date: 2026-06-24
 Updated: 2026-06-25 for Issue #88
+Updated: 2026-06-25 for Issue #93 installed package path docs
 
 ## Summary
 
@@ -111,6 +112,28 @@ Findings:
   settings.
 - `pi list --approve` reported the project package path.
 - `pi list` without `--approve` reported no packages, which matches Pi's project trust behavior.
+
+Issue #92 added the stricter user-like installed package path check:
+
+```sh
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi install -l ./node_modules/pi-orc --approve
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi list --approve
+```
+
+Expected list shape:
+
+```text
+Project packages:
+  ../node_modules/pi-orc
+    /private/tmp/.../project/node_modules/pi-orc
+```
+
+That follow-up also verified resource discovery from
+`./node_modules/pi-orc`, prompt formatting for `pi-orc-new-project`, and a
+real read-only `pi -p` smoke using `/skill:pi-orc-new-project` under the same
+temporary `PI_CODING_AGENT_DIR`. Use `--no-extensions` only to isolate
+unrelated user-global extension failures; it is not required for the package
+skill itself.
 
 ## Pi Resource Discovery
 

@@ -98,19 +98,23 @@ Use `docs/package-installability.md` as baseline evidence, then re-check after
 any final release change:
 
 ```sh
-npm pack --json
 tmp=$(mktemp -d)
-mkdir -p "$tmp/pkg" "$tmp/project" "$tmp/agent"
-tar -xzf pi-orc-0.1.0.tgz -C "$tmp/pkg"
+npm pack --json --pack-destination "$tmp"
+mkdir -p "$tmp/project" "$tmp/agent"
 cd "$tmp/project"
 npm init -y
-npm install /path/to/pi-orc/pi-orc-0.1.0.tgz
+npm install "$tmp/pi-orc-0.1.0.tgz"
 ./node_modules/.bin/pi-orc --help
 node --input-type=module -e "import('pi-orc').then(m => console.log(JSON.stringify(m.packageInfo)))"
-PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi install -l ../pkg/package
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi install -l ./node_modules/pi-orc --approve
 PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 ./node_modules/.bin/pi list --approve
-node --input-type=module - "$tmp/pkg/package" "$tmp/project" "$tmp/agent" <<'NODE'
-import { DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
+node --input-type=module - "$tmp/project/node_modules/pi-orc" "$tmp/project" "$tmp/agent" <<'NODE'
+import {
+  DefaultPackageManager,
+  SettingsManager,
+  formatSkillsForPrompt,
+  loadSkillsFromDir
+} from "@earendil-works/pi-coding-agent";
 
 const [packageRoot, cwd, agentDir] = process.argv.slice(2);
 const packageManager = new DefaultPackageManager({
@@ -119,24 +123,52 @@ const packageManager = new DefaultPackageManager({
   settingsManager: SettingsManager.inMemory()
 });
 const resolved = await packageManager.resolveExtensionSources([packageRoot], { temporary: true });
+const loaded = loadSkillsFromDir({ dir: `${packageRoot}/skills`, source: "path" });
+const prompt = formatSkillsForPrompt(loaded.skills);
 console.log(JSON.stringify({
   extensions: resolved.extensions.length,
-  skills: resolved.skills.map((skill) => skill.path.replace(packageRoot, "package")),
+  skills: resolved.skills.map((skill) => skill.path.replace(packageRoot, "node_modules/pi-orc")),
   prompts: resolved.prompts.length,
-  themes: resolved.themes.length
+  themes: resolved.themes.length,
+  promptHasSkill: prompt.includes("pi-orc-new-project")
 }, null, 2));
 NODE
+PI_CODING_AGENT_DIR="$tmp/agent" ./node_modules/.bin/pi \
+  --provider openai-codex \
+  --model gpt-5.4-mini \
+  --approve \
+  --no-extensions \
+  --no-session \
+  --no-builtin-tools \
+  --tools read \
+  -p '/skill:pi-orc-new-project Reply with exactly two lines: skill: pi-orc-new-project; command: the recommended dry-run command from the skill.'
 ```
 
 Expected result:
 
 - installed `pi-orc` binary prints help
 - `import('pi-orc')` works
-- Pi local install succeeds
-- Pi approved package list shows the local package
+- Pi local install succeeds from `./node_modules/pi-orc`
+- Pi approved package list shows the installed package path, shaped like:
+
+  ```text
+  Project packages:
+    ../node_modules/pi-orc
+      /private/tmp/.../project/node_modules/pi-orc
+  ```
+
 - Pi resource discovery reports exactly one skill:
-  `skills/pi-orc-new-project/SKILL.md`
+  `node_modules/pi-orc/skills/pi-orc-new-project/SKILL.md`
 - Pi resource discovery reports no extensions, prompts, or themes
+- prompt formatting includes `pi-orc-new-project`
+- the read-only `pi -p` smoke returns `skill: pi-orc-new-project` and the
+  recommended `pi-orc new-project --dry-run --intake path/to/intake.json`
+  command
+
+Run the `pi -p` smoke with the same temporary `PI_CODING_AGENT_DIR` so stale
+user-global skills cannot satisfy `/skill:pi-orc-new-project`. Use
+`--no-extensions` only to isolate unrelated user-global extension failures; it
+is not required for the package skill itself.
 
 ## Dogfood Checklist
 
