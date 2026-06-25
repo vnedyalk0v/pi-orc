@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync
+} from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -424,7 +433,7 @@ async function runVerificationWorkflow(input: {
   runner: VerificationCommandRunner;
 }): Promise<VerificationWorkflowResult> {
   if (input.reportPath) {
-    safeVerificationReportPath(input.cwd, input.reportPath);
+    preflightVerificationReportPath(input.cwd, input.reportPath);
   }
 
   const startedAt = new Date().toISOString();
@@ -565,6 +574,24 @@ function safeVerificationReportPath(cwd: string, path: string): string {
   return target;
 }
 
+function preflightVerificationReportPath(cwd: string, path: string): void {
+  const outputPath = safeVerificationReportPath(cwd, path);
+  const outputStat = lstatSync(outputPath, { throwIfNoEntry: false });
+
+  if (outputStat?.isDirectory()) {
+    throw new Error(`verify report ${path} failed: report path is an existing directory`);
+  }
+
+  try {
+    mkdirSync(dirname(outputPath), { recursive: true });
+    accessSync(outputStat ? outputPath : dirname(outputPath), constants.W_OK);
+  } catch (error) {
+    throw new Error(
+      `verify report ${path} failed: report path is not writable (${error instanceof Error ? error.message : String(error)})`
+    );
+  }
+}
+
 function isSafeRelativeReportPath(path: string): boolean {
   const segments = path.split("/");
 
@@ -651,11 +678,13 @@ function renderVerificationCheck(check: VerificationCommandResult, index: number
 function renderCapturedOutput(label: string, output: string, truncated: boolean): string[] {
   return [
     `${label}:`,
-    "```text",
-    output.trim() || "(empty)",
-    "```",
+    markdownCodeBlock(output === "" ? "(empty)" : output),
     ...(truncated ? [`${label} truncated to ${maxVerificationOutputCharacters} characters.`] : [])
   ];
+}
+
+function markdownCodeBlock(output: string): string {
+  return `\`\`\`text\n${output.endsWith("\n") ? output : `${output}\n`}\`\`\``;
 }
 
 function renderReviewSyncResult(result: PullRequestReviewSyncResult): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -212,7 +212,10 @@ describe("pi-orc CLI", () => {
 
   it("runs verification commands and prints a passing report", async () => {
     const result = await run(["verify", "--cmd", "npm test", "--cmd", "npm run build"], {
-      verificationRunner: fakeVerificationRunner()
+      verificationRunner: fakeVerificationRunner({
+        "npm test": { exitCode: 0, stdout: "  padded  " },
+        "npm run build": { exitCode: 0, stdout: "ok\n" }
+      })
     });
 
     expect(result.exitCode).toBe(0);
@@ -222,6 +225,7 @@ describe("pi-orc CLI", () => {
     expect(result.stdout).toContain("Artifact: stdout only; no durable report written");
     expect(result.stdout).toContain("### 1. `npm test`");
     expect(result.stdout).toContain("### 2. `npm run build`");
+    expect(result.stdout).toContain("```text\n  padded  \n```");
     expect(result.stdout).toContain("Raw local artifacts: not written");
   });
 
@@ -298,6 +302,39 @@ describe("pi-orc CLI", () => {
     expect(result.exitCode).toBe(1);
     expect(called).toBe(false);
     expect(result.stderr).toContain("report path is local-only workflow state");
+  });
+
+  it("rejects verify reports that point at an existing directory before running commands", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-orc-verify-dir-"));
+    let called = false;
+    const runner: VerificationRunner = async ({ command }) => {
+      called = true;
+
+      return {
+        command,
+        exitCode: 0,
+        startedAt: "2026-06-25T00:00:00.000Z",
+        finishedAt: "2026-06-25T00:00:01.000Z",
+        stdout: "",
+        stderr: "",
+        stdoutTruncated: false,
+        stderrTruncated: false
+      };
+    };
+
+    try {
+      mkdirSync(join(dir, "docs/ai/verified-reports"), { recursive: true });
+      const result = await run(["verify", "--cmd", "npm test", "--report", "docs/ai/verified-reports"], {
+        cwd: dir,
+        verificationRunner: runner
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(called).toBe(false);
+      expect(result.stderr).toContain("report path is an existing directory");
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 
   it("prints a read-only sync-review summary with no comments", async () => {
