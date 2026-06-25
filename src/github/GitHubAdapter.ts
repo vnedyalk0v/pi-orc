@@ -529,7 +529,7 @@ function checkState(check: GhStatusCheck): PullRequestCheckState {
     return "success";
   }
 
-  if (["failure", "error", "timed_out", "cancelled", "action_required"].includes(value)) {
+  if (["failure", "error", "timed_out", "cancelled", "action_required", "startup_failure", "stale"].includes(value)) {
     return "failure";
   }
 

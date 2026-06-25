@@ -37,6 +37,14 @@ describe("GhGitHubAdapter", () => {
                 name: "verify",
                 conclusion: "SUCCESS",
                 detailsUrl: "https://github.com/owner/repo/actions/runs/1"
+              },
+              {
+                name: "setup",
+                conclusion: "STARTUP_FAILURE"
+              },
+              {
+                name: "lint",
+                conclusion: "STALE"
               }
             ]
           }),
@@ -162,6 +170,14 @@ describe("GhGitHubAdapter", () => {
         {
           name: "verify",
           state: "success"
+        },
+        {
+          name: "setup",
+          state: "failure"
+        },
+        {
+          name: "lint",
+          state: "failure"
         }
       ],
       botReactions: [
