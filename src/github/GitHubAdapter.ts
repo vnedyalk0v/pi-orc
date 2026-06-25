@@ -118,11 +118,11 @@ const defaultGhCommandTimeoutMs = 120_000;
 const defaultGhCommandMaxOutputBytes = 1_000_000;
 const defaultGhCommandForceKillAfterMs = 1_000;
 const reviewBotLogin = "chatgpt-codex-connector[bot]";
-const pullRequestReviewQuery = `
-query($owner: String!, $name: String!, $number: Int!) {
+const pullRequestCommentsQuery = `
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      comments(first: 100) {
+      comments(first: 100, after: $after) {
         nodes {
           id
           databaseId
@@ -131,8 +131,19 @@ query($owner: String!, $name: String!, $number: Int!) {
           }
           body
         }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
       }
-      reviewThreads(first: 100) {
+    }
+  }
+}`;
+const pullRequestReviewThreadsQuery = `
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $after) {
         nodes {
           id
           isResolved
@@ -147,7 +158,38 @@ query($owner: String!, $name: String!, $number: Int!) {
               path
               line
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}`;
+const reviewThreadCommentsQuery = `
+query($id: ID!, $after: String) {
+  node(id: $id) {
+    ... on PullRequestReviewThread {
+      comments(first: 100, after: $after) {
+        nodes {
+          id
+          databaseId
+          author {
+            login
+          }
+          body
+          path
+          line
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
     }
@@ -170,18 +212,41 @@ interface GhStatusCheck {
   targetUrl?: string;
 }
 
-interface GhReviewGraphqlResponse {
+interface GhPageInfo {
+  hasNextPage: boolean;
+  endCursor?: string | null;
+}
+
+interface GhConnection<T> {
+  nodes: readonly T[];
+  pageInfo: GhPageInfo;
+}
+
+interface GhPullRequestCommentsResponse {
   data: {
     repository: {
       pullRequest: {
-        comments: {
-          nodes: readonly GhGraphqlComment[];
-        };
-        reviewThreads: {
-          nodes: readonly GhGraphqlThread[];
-        };
+        comments: GhConnection<GhGraphqlComment>;
       };
     };
+  };
+}
+
+interface GhReviewThreadsResponse {
+  data: {
+    repository: {
+      pullRequest: {
+        reviewThreads: GhConnection<GhGraphqlThread>;
+      };
+    };
+  };
+}
+
+interface GhReviewThreadCommentsResponse {
+  data: {
+    node: {
+      comments: GhConnection<GhGraphqlComment>;
+    } | null;
   };
 }
 
@@ -199,9 +264,7 @@ interface GhGraphqlComment {
 interface GhGraphqlThread {
   id: string;
   isResolved: boolean;
-  comments: {
-    nodes: readonly GhGraphqlComment[];
-  };
+  comments: GhConnection<GhGraphqlComment>;
 }
 
 interface GhReaction {
@@ -267,20 +330,8 @@ export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextA
     const pullRequest = parseJson<GhPullRequestView>(
       await this.run(["pr", "view", pullRequestNumber, "--repo", ref.repository, "--json", "headRefOid,statusCheckRollup"])
     );
-    const review = parseJson<GhReviewGraphqlResponse>(
-      await this.run([
-        "api",
-        "graphql",
-        "-f",
-        `owner=${owner}`,
-        "-f",
-        `name=${name}`,
-        "-F",
-        `number=${pullRequestNumber}`,
-        "-f",
-        `query=${pullRequestReviewQuery}`
-      ])
-    );
+    const comments = await this.loadPullRequestComments(owner, name, ref.pullRequestNumber);
+    const reviewThreads = await this.loadPullRequestReviewThreads(owner, name, ref.pullRequestNumber);
     const reactions = parseJson<unknown>(
       await this.run([
         "api",
@@ -291,19 +342,105 @@ export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextA
         "--slurp"
       ])
     );
-    const graphPullRequest = review.data.repository.pullRequest;
 
     return {
       repository: ref.repository,
       pullRequestNumber: ref.pullRequestNumber,
       headSha: pullRequest.headRefOid,
-      comments: graphPullRequest.comments.nodes.map(mapGraphqlComment),
-      reviewThreads: graphPullRequest.reviewThreads.nodes.map(mapGraphqlThread),
+      comments,
+      reviewThreads,
       checks: pullRequest.statusCheckRollup.map(mapCheck),
       botReactions: reactionNodes(reactions)
         .map(mapReaction)
         .filter((reaction) => reaction.actor === reviewBotLogin)
     };
+  }
+
+  private async loadPullRequestComments(
+    owner: string,
+    name: string,
+    pullRequestNumber: number
+  ): Promise<PullRequestReviewComment[]> {
+    const comments: PullRequestReviewComment[] = [];
+    let after: string | undefined;
+
+    do {
+      const response = parseJson<GhPullRequestCommentsResponse>(
+        await this.run(graphqlArgs(pullRequestCommentsQuery, [
+          ["owner", owner],
+          ["name", name],
+          ["number", String(pullRequestNumber)],
+          ["after", after]
+        ]))
+      );
+      const page = response.data.repository.pullRequest.comments;
+
+      comments.push(...page.nodes.map(mapGraphqlComment));
+      after = nextCursor(page.pageInfo);
+    } while (after);
+
+    return comments;
+  }
+
+  private async loadPullRequestReviewThreads(
+    owner: string,
+    name: string,
+    pullRequestNumber: number
+  ): Promise<PullRequestReviewThread[]> {
+    const threads: PullRequestReviewThread[] = [];
+    let after: string | undefined;
+
+    do {
+      const response = parseJson<GhReviewThreadsResponse>(
+        await this.run(graphqlArgs(pullRequestReviewThreadsQuery, [
+          ["owner", owner],
+          ["name", name],
+          ["number", String(pullRequestNumber)],
+          ["after", after]
+        ]))
+      );
+      const page = response.data.repository.pullRequest.reviewThreads;
+
+      for (const thread of page.nodes) {
+        const comments = [
+          ...thread.comments.nodes,
+          ...(await this.loadRemainingReviewThreadComments(thread.id, nextCursor(thread.comments.pageInfo)))
+        ];
+
+        threads.push(mapGraphqlThread(thread, comments));
+      }
+
+      after = nextCursor(page.pageInfo);
+    } while (after);
+
+    return threads;
+  }
+
+  private async loadRemainingReviewThreadComments(
+    threadId: string,
+    firstCursor: string | undefined
+  ): Promise<GhGraphqlComment[]> {
+    const comments: GhGraphqlComment[] = [];
+    let after = firstCursor;
+
+    while (after) {
+      const response = parseJson<GhReviewThreadCommentsResponse>(
+        await this.run(graphqlArgs(reviewThreadCommentsQuery, [
+          ["id", threadId],
+          ["after", after]
+        ]))
+      );
+      const page = response.data.node?.comments;
+
+      if (!page) {
+        return comments;
+      }
+
+      comments.push(...page.nodes);
+      after = nextCursor(page.pageInfo);
+    }
+
+    return comments;
   }
 }
 
@@ -325,15 +462,35 @@ function parseJson<T>(output: GitHubCommandOutput): T {
   return JSON.parse(output.stdout) as T;
 }
 
-function mapGraphqlThread(thread: GhGraphqlThread): PullRequestReviewThread {
+function mapGraphqlThread(thread: GhGraphqlThread, comments: readonly GhGraphqlComment[]): PullRequestReviewThread {
   return {
     id: thread.id,
     isResolved: thread.isResolved,
-    comments: thread.comments.nodes.map((comment) => ({
+    comments: comments.map((comment) => ({
       ...mapGraphqlComment(comment),
       threadId: thread.id
     }))
   };
+}
+
+function graphqlArgs(query: string, fields: readonly (readonly [string, string | undefined])[]): string[] {
+  return [
+    "api",
+    "graphql",
+    ...fields.flatMap(([name, value]) => {
+      if (!value) {
+        return [];
+      }
+
+      return [name === "number" ? "-F" : "-f", `${name}=${value}`];
+    }),
+    "-f",
+    `query=${query}`
+  ];
+}
+
+function nextCursor(pageInfo: GhPageInfo): string | undefined {
+  return pageInfo.hasNextPage ? (pageInfo.endCursor ?? undefined) : undefined;
 }
 
 function mapGraphqlComment(comment: GhGraphqlComment): PullRequestReviewComment {

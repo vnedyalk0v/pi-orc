@@ -45,6 +45,51 @@ describe("GhGitHubAdapter", () => {
       }
 
       if (args[0] === "api" && args[1] === "graphql") {
+        const query = args.find((arg) => arg.startsWith("query=")) ?? "";
+
+        if (query.includes("reviewThreads")) {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({
+              data: {
+                repository: {
+                  pullRequest: {
+                    reviewThreads: {
+                      nodes: [
+                        {
+                          id: "thread-1",
+                          isResolved: false,
+                          comments: {
+                            nodes: [
+                              {
+                                id: "review-comment-node",
+                                databaseId: 202,
+                                author: { login: "chatgpt-codex-connector[bot]" },
+                                body: "Inline review signal.",
+                                path: "src/file.ts",
+                                line: 12
+                              }
+                            ],
+                            pageInfo: {
+                              hasNextPage: false,
+                              endCursor: null
+                            }
+                          }
+                        }
+                      ],
+                      pageInfo: {
+                        hasNextPage: false,
+                        endCursor: null
+                      }
+                    }
+                  }
+                }
+              }
+            }),
+            stderr: ""
+          };
+        }
+
         return {
           exitCode: 0,
           stdout: JSON.stringify({
@@ -59,27 +104,11 @@ describe("GhGitHubAdapter", () => {
                         author: { login: "chatgpt-codex-connector[bot]" },
                         body: "Top-level review signal."
                       }
-                    ]
-                  },
-                  reviewThreads: {
-                    nodes: [
-                      {
-                        id: "thread-1",
-                        isResolved: false,
-                        comments: {
-                          nodes: [
-                            {
-                              id: "review-comment-node",
-                              databaseId: 202,
-                              author: { login: "chatgpt-codex-connector[bot]" },
-                              body: "Inline review signal.",
-                              path: "src/file.ts",
-                              line: 12
-                            }
-                          ]
-                        }
-                      }
-                    ]
+                    ],
+                    pageInfo: {
+                      hasNextPage: false,
+                      endCursor: null
+                    }
                   }
                 }
               }
@@ -145,7 +174,142 @@ describe("GhGitHubAdapter", () => {
     expect(calls.map((call) => call.slice(0, 2))).toEqual([
       ["pr", "view"],
       ["api", "graphql"],
+      ["api", "graphql"],
       ["api", "repos/owner/repo/issues/7/reactions"]
+    ]);
+  });
+
+  it("paginates PR comments, review threads, and thread comments", async () => {
+    const adapter = new GhGitHubAdapter(async (args) => {
+      if (args[0] === "pr") {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            headRefOid: "abc123",
+            statusCheckRollup: []
+          }),
+          stderr: ""
+        };
+      }
+
+      if (args[0] === "api" && args[1] === "graphql") {
+        const query = args.find((arg) => arg.startsWith("query=")) ?? "";
+        const after = args.find((arg) => arg.startsWith("after="));
+
+        if (query.includes("node(id: $id)")) {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({
+              data: {
+                node: {
+                  comments: {
+                    nodes: [
+                      {
+                        id: "thread-comment-page-2",
+                        databaseId: 304,
+                        author: { login: "chatgpt-codex-connector[bot]" },
+                        body: "Nested page 2.",
+                        path: "src/file.ts",
+                        line: 20
+                      }
+                    ],
+                    pageInfo: {
+                      hasNextPage: false,
+                      endCursor: null
+                    }
+                  }
+                }
+              }
+            }),
+            stderr: ""
+          };
+        }
+
+        if (query.includes("reviewThreads")) {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({
+              data: {
+                repository: {
+                  pullRequest: {
+                    reviewThreads: {
+                      nodes: [
+                        {
+                          id: after ? "thread-2" : "thread-1",
+                          isResolved: false,
+                          comments: {
+                            nodes: [
+                              {
+                                id: after ? "thread-comment-2" : "thread-comment-1",
+                                databaseId: after ? 303 : 302,
+                                author: { login: "chatgpt-codex-connector[bot]" },
+                                body: after ? "Thread page 2." : "Thread page 1.",
+                                path: "src/file.ts",
+                                line: after ? 13 : 12
+                              }
+                            ],
+                            pageInfo: {
+                              hasNextPage: !after,
+                              endCursor: after ? null : "thread-comments-cursor"
+                            }
+                          }
+                        }
+                      ],
+                      pageInfo: {
+                        hasNextPage: !after,
+                        endCursor: after ? null : "threads-cursor"
+                      }
+                    }
+                  }
+                }
+              }
+            }),
+            stderr: ""
+          };
+        }
+
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            data: {
+              repository: {
+                pullRequest: {
+                  comments: {
+                    nodes: [
+                      {
+                        id: after ? "issue-comment-page-2" : "issue-comment-page-1",
+                        databaseId: after ? 301 : 300,
+                        author: { login: "chatgpt-codex-connector[bot]" },
+                        body: after ? "Issue page 2." : "Issue page 1."
+                      }
+                    ],
+                    pageInfo: {
+                      hasNextPage: !after,
+                      endCursor: after ? null : "comments-cursor"
+                    }
+                  }
+                }
+              }
+            }
+          }),
+          stderr: ""
+        };
+      }
+
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify([]),
+        stderr: ""
+      };
+    });
+
+    const result = await adapter.loadPullRequestReviewContext({ repository: "owner/repo", pullRequestNumber: 7 });
+
+    expect(result.comments.map((comment) => comment.body)).toEqual(["Issue page 1.", "Issue page 2."]);
+    expect(result.reviewThreads.map((thread) => thread.id)).toEqual(["thread-1", "thread-2"]);
+    expect(result.reviewThreads[0]?.comments.map((comment) => comment.body)).toEqual([
+      "Thread page 1.",
+      "Nested page 2."
     ]);
   });
 
