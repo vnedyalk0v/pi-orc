@@ -11,6 +11,10 @@ the project-local package path.
 
 No product gaps were found during this dogfood pass.
 
+A follow-up Issue #92 pass also verified the stricter user-like installed
+package path, `./node_modules/pi-orc`, prompt skill formatting, and a real
+read-only `pi -p` skill-use smoke.
+
 ## Issue Tracking
 
 - Issue: https://github.com/vnedyalk0v/pi-orc/issues/87
@@ -239,3 +243,153 @@ git diff --stat
 
 Pi skill package dogfood passed. Branch remains scoped to Issue #87 until this
 report is merged.
+
+## Issue #92 Installed Package Path Dogfood
+
+Issue #92 verified the packed package through the installed npm package path a
+user will exercise before release.
+
+Issue tracking:
+
+- Issue: https://github.com/vnedyalk0v/pi-orc/issues/92
+- Assignee: `vnedyalk0v`
+- Status label during execution: `status:in-progress`
+- Project: `pi-orc`
+- Project Status during execution: `In Progress`
+- Project fields: Priority `P0`, Type `test`, Area `testing`, Source `manual`
+
+Branch:
+
+```text
+test/issue-92-installed-pi-package-dogfood
+```
+
+Temporary sandbox:
+
+```text
+/tmp/pi-orc-installed-dogfood-92.Diu4sT
+```
+
+Sandbox layout:
+
+- `project/`: clean project that installed the packed tarball and ran Pi from
+  `./node_modules/.bin/pi`
+- `agent/`: temporary `PI_CODING_AGENT_DIR` for package install/list checks
+
+No sandbox directory, raw output file, extracted package, or tarball is
+committed.
+
+Pack command:
+
+```sh
+npm pack --json --pack-destination /tmp/pi-orc-installed-dogfood-92.Diu4sT
+```
+
+Result: pass. `prepack` rebuilt the package with `npm run build`, and the
+tarball was `pi-orc-0.1.0.tgz` with 66 entries.
+
+Clean project install:
+
+```sh
+cd /tmp/pi-orc-installed-dogfood-92.Diu4sT/project
+npm init -y
+npm install /tmp/pi-orc-installed-dogfood-92.Diu4sT/pi-orc-0.1.0.tgz
+node --input-type=module -e 'const pkg = await import("./node_modules/pi-orc/package.json", { with: { type: "json" } }); console.log(`${pkg.default.name}@${pkg.default.version}`);'
+```
+
+Result:
+
+```text
+pi-orc@0.1.0
+```
+
+Installed package registration:
+
+```sh
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 \
+  ./node_modules/.bin/pi \
+  install -l ./node_modules/pi-orc --approve
+```
+
+Output:
+
+```text
+Installing ./node_modules/pi-orc...
+Installed ./node_modules/pi-orc
+```
+
+Approved package list:
+
+```sh
+PI_CODING_AGENT_DIR="$tmp/agent" PI_OFFLINE=1 \
+  ./node_modules/.bin/pi \
+  list --approve
+```
+
+Output:
+
+```text
+Project packages:
+  ../node_modules/pi-orc
+    /private/tmp/pi-orc-installed-dogfood-92.Diu4sT/project/node_modules/pi-orc
+```
+
+Package resource resolution from the installed path:
+
+```json
+{
+  "extensions": 0,
+  "skills": [
+    "node_modules/pi-orc/skills/pi-orc-new-project/SKILL.md"
+  ],
+  "prompts": 0,
+  "themes": 0
+}
+```
+
+Prompt formatting included the installed skill:
+
+```text
+<name>pi-orc-new-project</name>
+```
+
+Read-only real Pi skill-use smoke:
+
+```sh
+./node_modules/.bin/pi \
+  --provider openai-codex \
+  --model gpt-5.4-mini \
+  --approve \
+  --no-extensions \
+  --no-session \
+  --no-builtin-tools \
+  --tools read \
+  -p '/skill:pi-orc-new-project Reply with exactly two lines: skill: pi-orc-new-project; command: the recommended dry-run command from the skill.'
+```
+
+Output:
+
+```text
+skill: pi-orc-new-project
+command: pi-orc new-project --dry-run --intake path/to/intake.json
+```
+
+`--no-extensions` was used only to isolate the smoke from unrelated user-global
+extension failures. It did not disable package skill loading.
+
+Problems found: none.
+
+Scope check:
+
+- Used a packed local tarball, not `npm link`.
+- Installed the tarball into a clean temporary project.
+- Registered Pi package path `./node_modules/pi-orc`.
+- Verified `pi list --approve` reports the installed package path.
+- Verified package resolution reports exactly one skill from
+  `./node_modules/pi-orc`.
+- Verified prompt formatting includes `pi-orc-new-project`.
+- Verified a real `pi -p` invocation can use `pi-orc-new-project`.
+- Did not publish to npm.
+- Did not create a GitHub release.
+- Did not create a git tag.
+- Did not modify repository settings.
