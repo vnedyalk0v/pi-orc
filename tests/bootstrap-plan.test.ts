@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +14,7 @@ const fixtureNames = [
 ] as const;
 const fixtures = Object.fromEntries(fixtureNames.map((name) => [name, readFixture(name)]));
 const typescriptIntake = fixtures["typescript-project"];
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("bootstrap plan generation", () => {
   it("generates a dry-run bootstrap plan from TypeScript intake", () => {
@@ -69,6 +70,23 @@ describe("bootstrap plan generation", () => {
 
     expect(dryRun.mutates).toBe(false);
     expect(dryRun.markdown).toContain("Repository: `vnedyalk0v/example-typescript-app`");
+  });
+
+  it("uses the target repo manifest for template files and labels", () => {
+    const manifest = readTargetRepoManifest();
+    const exclude = new Set(manifest.exclude ?? []);
+    const templateFiles = listTemplateFiles(join(repoRoot, "templates", manifest.root)).filter(
+      (template) => !exclude.has(template)
+    );
+    const plan = generateBootstrapPlan(typescriptIntake);
+
+    expect(plan.files.map((file) => file.template)).toEqual(templateFiles);
+    expect(plan.files.map((file) => file.path)).toEqual(
+      templateFiles.map((template) => manifest.renames?.[template] ?? template)
+    );
+    expect(
+      plan.githubActions.flatMap(({ action }) => (action.kind === "create-label" ? [action.name] : []))
+    ).toEqual(manifest.labels.map((label) => label.name));
   });
 
   it("quotes valid intake values in rendered git commands", () => {
@@ -127,4 +145,32 @@ describe("bootstrap plan generation", () => {
 
 function readFixture(name: (typeof fixtureNames)[number]): Record<string, unknown> {
   return JSON.parse(readFileSync(join(fixtureDir, `${name}.json`), "utf8")) as Record<string, unknown>;
+}
+
+interface TargetRepoManifest {
+  root: string;
+  exclude?: string[];
+  renames?: Record<string, string>;
+  labels: Array<{ name: string }>;
+}
+
+function readTargetRepoManifest(): TargetRepoManifest {
+  const manifestPath = join(repoRoot, "templates", "target-repo.manifest.json");
+
+  return JSON.parse(readFileSync(manifestPath, "utf8")) as TargetRepoManifest;
+}
+
+function listTemplateFiles(directory: string, base = ""): string[] {
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const relativePath = base ? `${base}/${entry.name}` : entry.name;
+      const fullPath = join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        return listTemplateFiles(fullPath, relativePath);
+      }
+
+      return entry.isFile() ? [relativePath] : [];
+    })
+    .sort();
 }

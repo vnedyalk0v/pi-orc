@@ -1,3 +1,7 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { NewProjectIntakeSchema } from "../runtime/index.js";
 import type { GitHubAction } from "../github/index.js";
 import type { NewProjectIntake, WorkflowActionCategory } from "../runtime/index.js";
@@ -46,38 +50,27 @@ export interface BootstrapPlanDryRun {
   mutates: false;
 }
 
-const targetRepoTemplates = [
-  ".ai-workflow/README.md",
-  ".ai-workflow/config.yml",
-  ".github/ISSUE_TEMPLATE/bug.yml",
-  ".github/ISSUE_TEMPLATE/config.yml",
-  ".github/ISSUE_TEMPLATE/docs.yml",
-  ".github/ISSUE_TEMPLATE/task.yml",
-  ".github/ISSUE_TEMPLATE/verified-finding.yml",
-  ".github/pull_request_template.md",
-  "AGENTS.md",
-  "README.md",
-  "docs/adr/ADR-0001-project-foundation.md",
-  "docs/ai/verified-reports/README.md",
-  "docs/architecture.md",
-  "docs/implementation-plan.md",
-  "docs/mvp.md",
-  "docs/prd.md",
-  "gitignore"
-] as const;
+interface TargetRepoLabel {
+  name: string;
+  color: string;
+  description: string;
+}
 
-const targetRepoLabels = [
-  ["type:task", "1d76db", "Planned implementation or maintenance work"],
-  ["type:bug", "d73a4a", "Reproducible defect"],
-  ["type:finding", "fbca04", "Independently verified finding"],
-  ["type:docs", "0075ca", "Documentation work"],
-  ["status:ready", "0e8a16", "Ready to implement"],
-  ["status:in-progress", "fbca04", "Work in progress"],
-  ["status:blocked", "b60205", "Blocked by dependency or decision"],
-  ["status:done", "8250df", "Work is completed"],
-  ["source:manual", "ededed", "Created manually"],
-  ["source:verified", "5319e7", "Created from verified evidence"]
-] as const;
+interface TargetRepoManifest {
+  root: string;
+  exclude?: string[];
+  renames?: Record<string, string>;
+  labels: TargetRepoLabel[];
+}
+
+const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
+const targetRepoManifest = JSON.parse(
+  readFileSync(join(packageRoot, "templates", "target-repo.manifest.json"), "utf8")
+) as TargetRepoManifest;
+const targetRepoExclude = new Set(targetRepoManifest.exclude ?? []);
+const targetRepoTemplates = listTemplateFiles(join(packageRoot, "templates", targetRepoManifest.root)).filter(
+  (template) => !targetRepoExclude.has(template)
+);
 
 export function generateBootstrapPlan(input: unknown): BootstrapPlan {
   const intake = NewProjectIntakeSchema.parse(input);
@@ -174,7 +167,7 @@ function githubPlanActions(intake: NewProjectIntake, repository: string): Bootst
       },
       requiredPolicyAction: "create-github-repository"
     },
-    ...targetRepoLabels.map<BootstrapGitHubAction>(([name, color, description]) => ({
+    ...targetRepoManifest.labels.map<BootstrapGitHubAction>(({ name, color, description }) => ({
       action: {
         kind: "create-label",
         repository,
@@ -266,7 +259,22 @@ function renderGitHubAction(action: GitHubAction): string {
 }
 
 function targetPath(template: string): string {
-  return template === "gitignore" ? ".gitignore" : template;
+  return targetRepoManifest.renames?.[template] ?? template;
+}
+
+function listTemplateFiles(directory: string, base = ""): string[] {
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const relativePath = base ? `${base}/${entry.name}` : entry.name;
+      const fullPath = join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        return listTemplateFiles(fullPath, relativePath);
+      }
+
+      return entry.isFile() ? [relativePath] : [];
+    })
+    .sort();
 }
 
 function shellQuote(value: string): string {
