@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { packageInfo, PiSdkWorkerRuntime } from "../src/index.js";
-import type { WorkerHandoff, WorkerProfile } from "../src/index.js";
+import type { PiSdkSessionFactoryOptions, WorkerHandoff, WorkerProfile, WorkerRunResult } from "../src/index.js";
 
 const profile: WorkerProfile = {
   id: "foundation-worker",
@@ -54,22 +54,85 @@ describe("packageInfo", () => {
 });
 
 describe("PiSdkWorkerRuntime", () => {
-  it("exposes a clean-context SDK runtime skeleton", async () => {
+  it("runs a clean-context SDK session and validates worker output", async () => {
+    const workerResult: WorkerRunResult = {
+      runId: "smoke-run",
+      status: "success",
+      summary: "Worker produced verified output.",
+      artifacts: [],
+      events: [
+        {
+          type: "worker.completed",
+          message: "Worker completed.",
+          timestamp: "2026-06-25T00:00:00.000Z"
+        }
+      ],
+      errors: []
+    };
+    let factoryOptions: PiSdkSessionFactoryOptions | undefined;
+    let prompted = "";
+    let promptOptions: unknown;
+    let disposed = false;
+    const messages: Array<{ role: "assistant"; content: Array<{ type: "text"; text: string }> }> = [];
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async (options) => {
+        factoryOptions = options;
+
+        return {
+          prompt: async (text, options) => {
+            prompted = text;
+            promptOptions = options;
+            messages.push({
+              role: "assistant",
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(workerResult)
+                }
+              ]
+            });
+          },
+          messages,
+          dispose: async () => {
+            disposed = true;
+          }
+        };
+      }
+    });
+    const result = await runtime.run({
+      profile,
+      handoff
+    });
+
+    expect(result).toEqual(workerResult);
+    expect(factoryOptions?.profile.id).toBe("foundation-worker");
+    expect(factoryOptions?.handoff.runId).toBe("smoke-run");
+    expect(factoryOptions?.prompt).toContain("Do not assume parent chat history.");
+    expect(prompted).toContain('"workerId": "foundation-worker"');
+    expect(promptOptions).toEqual({ expandPromptTemplates: false });
+    expect(disposed).toBe(true);
+  });
+
+  it("blocks execution when no SDK session factory is configured", async () => {
     const runtime = new PiSdkWorkerRuntime();
     const result = await runtime.run({
       profile,
       handoff
     });
 
-    expect(result.runId).toBe("smoke-run");
-    expect(result.status).toBe("failure");
-    expect(result.artifacts).toEqual([]);
-    expect(result.events[0]?.type).toBe("runtime.not_implemented");
-    expect(result.errors[0]?.code).toBe("not_implemented");
+    expect(result.status).toBe("blocked");
+    expect(result.events[0]?.type).toBe("runtime.missing_session_factory");
+    expect(result.errors[0]?.code).toBe("missing_session_factory");
   });
 
   it("returns failure when profile id and handoff workerId differ", async () => {
-    const runtime = new PiSdkWorkerRuntime();
+    let called = false;
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => {
+        called = true;
+        throw new Error("must not start");
+      }
+    });
     const result = await runtime.run({
       profile: {
         ...profile,
@@ -81,6 +144,185 @@ describe("PiSdkWorkerRuntime", () => {
     expect(result.status).toBe("failure");
     expect(result.events[0]?.type).toBe("runtime.profile_mismatch");
     expect(result.errors[0]?.code).toBe("profile_mismatch");
+    expect(called).toBe(false);
+  });
+
+  it("ignores stale assistant output from reused SDK sessions", async () => {
+    const staleResult: WorkerRunResult = {
+      runId: "smoke-run",
+      status: "success",
+      summary: "Stale output from a previous turn.",
+      artifacts: [],
+      events: [
+        {
+          type: "worker.completed",
+          message: "Worker completed.",
+          timestamp: "2026-06-25T00:00:00.000Z"
+        }
+      ],
+      errors: []
+    };
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(staleResult)
+          }
+        ]
+      }
+    ];
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => ({
+        prompt: async () => {},
+        messages,
+        getLastAssistantText: () => JSON.stringify(staleResult)
+      })
+    });
+    const result = await runtime.run({
+      profile,
+      handoff
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.events[0]?.type).toBe("runtime.missing_worker_output");
+    expect(result.errors[0]?.code).toBe("missing_worker_output");
+  });
+
+  it("returns failure when SDK output does not match WorkerRunResultSchema", async () => {
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => ({
+        prompt: async () => {},
+        getLastAssistantText: () =>
+          JSON.stringify({
+            runId: "smoke-run",
+            status: "success",
+            summary: "Invalid success result.",
+            artifacts: [],
+            events: [],
+            errors: [
+              {
+                code: "not_allowed",
+                message: "success cannot include errors"
+              }
+            ]
+          })
+      })
+    });
+    const result = await runtime.run({
+      profile,
+      handoff
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.events[0]?.type).toBe("runtime.invalid_worker_output");
+    expect(result.errors[0]?.code).toBe("invalid_worker_output");
+  });
+
+  it("returns failure when success output misses required durable artifacts", async () => {
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => ({
+        prompt: async () => {},
+        getLastAssistantText: () =>
+          JSON.stringify({
+            runId: "smoke-run",
+            status: "success",
+            summary: "Done but missing file.",
+            artifacts: [],
+            events: [
+              {
+                type: "worker.completed",
+                message: "Worker completed.",
+                timestamp: "2026-06-25T00:00:00.000Z"
+              }
+            ],
+            errors: []
+          })
+      })
+    });
+    const result = await runtime.run({
+      profile,
+      handoff: {
+        ...handoff,
+        expectedOutput: {
+          requiredFiles: ["docs/result.md"],
+          format: "markdown"
+        }
+      }
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.events[0]?.type).toBe("runtime.output_contract_mismatch");
+    expect(result.errors[0]).toEqual({
+      code: "output_contract_mismatch",
+      message: "Worker success is missing required verified durable artifact(s): docs/result.md"
+    });
+  });
+
+  it("returns failure when success output includes unverified required durable artifacts", async () => {
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => ({
+        prompt: async () => {},
+        getLastAssistantText: () =>
+          JSON.stringify({
+            runId: "smoke-run",
+            status: "success",
+            summary: "Done with unverified file.",
+            artifacts: [
+              {
+                path: "docs/result.md",
+                kind: "durable",
+                verified: false
+              }
+            ],
+            events: [
+              {
+                type: "worker.completed",
+                message: "Worker completed.",
+                timestamp: "2026-06-25T00:00:00.000Z"
+              }
+            ],
+            errors: []
+          })
+      })
+    });
+    const result = await runtime.run({
+      profile,
+      handoff: {
+        ...handoff,
+        expectedOutput: {
+          requiredFiles: ["docs/result.md"],
+          format: "markdown"
+        }
+      }
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.events[0]?.type).toBe("runtime.output_contract_mismatch");
+    expect(result.errors[0]).toEqual({
+      code: "output_contract_mismatch",
+      message: "Worker success is missing required verified durable artifact(s): docs/result.md"
+    });
+  });
+
+  it("returns failure when SDK execution fails", async () => {
+    const runtime = new PiSdkWorkerRuntime({
+      createAgentSession: async () => {
+        throw new Error("sdk unavailable");
+      }
+    });
+    const result = await runtime.run({
+      profile,
+      handoff
+    });
+
+    expect(result.status).toBe("failure");
+    expect(result.events[0]?.type).toBe("runtime.sdk_failure");
+    expect(result.errors[0]).toEqual({
+      code: "sdk_execution_failed",
+      message: "sdk unavailable"
+    });
   });
 
   it("rejects invalid profiles before runtime execution", async () => {

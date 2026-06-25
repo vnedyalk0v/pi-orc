@@ -1,8 +1,37 @@
 import type { WorkerRunResult } from "./WorkerRunResult.js";
 import type { WorkerRuntime } from "./WorkerRuntime.js";
-import { WorkerRunInputSchema, type WorkerRunInput } from "./schemas.js";
+import {
+  WorkerRunInputSchema,
+  WorkerRunResultSchema,
+  type WorkerHandoff,
+  type WorkerProfile,
+  type WorkerRunInput
+} from "./schemas.js";
 
-export type PiSdkSessionFactory = (options?: unknown) => Promise<unknown>;
+export interface PiSdkAgentSession {
+  prompt(
+    text: string,
+    options?: { expandPromptTemplates?: boolean; source?: "interactive" | "rpc" | "extension" }
+  ): Promise<void>;
+  messages?: readonly PiSdkAgentMessage[];
+  getLastAssistantText?: () => string | undefined;
+  dispose?: () => void | Promise<void>;
+}
+
+interface PiSdkAgentMessage {
+  role?: string;
+  content?: unknown;
+}
+
+export interface PiSdkSessionFactoryOptions {
+  profile: WorkerProfile;
+  handoff: WorkerHandoff;
+  prompt: string;
+}
+
+export type PiSdkSessionFactory = (
+  options: PiSdkSessionFactoryOptions
+) => Promise<PiSdkAgentSession | { session: PiSdkAgentSession }>;
 
 export interface PiSdkWorkerRuntimeOptions {
   createAgentSession?: PiSdkSessionFactory;
@@ -41,24 +70,231 @@ export class PiSdkWorkerRuntime implements WorkerRuntime {
       };
     }
 
-    return {
-      runId: handoff.runId,
-      status: "failure",
-      summary: "SDK worker execution is not implemented.",
-      artifacts: [],
-      events: [
-        {
-          type: "runtime.not_implemented",
-          message: `SDK worker execution is not implemented for ${profile.id}.`,
-          timestamp: new Date().toISOString()
-        }
-      ],
-      errors: [
-        {
-          code: "not_implemented",
-          message: "PiSdkWorkerRuntime is the SDK runtime boundary; real session execution belongs to a later issue."
-        }
-      ]
-    };
+    if (!this.createAgentSession) {
+      return runtimeResult(
+        handoff.runId,
+        "blocked",
+        "SDK session factory is required.",
+        "runtime.missing_session_factory",
+        "missing_session_factory",
+        "PiSdkWorkerRuntime needs an injected SDK session factory before execution."
+      );
+    }
+
+    const prompt = renderWorkerPrompt(profile, handoff);
+    let session: PiSdkAgentSession | undefined;
+
+    try {
+      session = unwrapSession(
+        await this.createAgentSession({
+          profile,
+          handoff,
+          prompt
+        })
+      );
+      const messageStartIndex = session.messages?.length;
+      await session.prompt(prompt, {
+        expandPromptTemplates: false
+      });
+
+      const output = getAssistantText(session, messageStartIndex);
+
+      if (!output) {
+        return runtimeResult(
+          handoff.runId,
+          "failure",
+          "SDK worker produced no output.",
+          "runtime.missing_worker_output",
+          "missing_worker_output",
+          "Worker session ended without assistant output."
+        );
+      }
+
+      return parseWorkerOutput(handoff, output);
+    } catch (error) {
+      return runtimeResult(
+        handoff.runId,
+        "failure",
+        "SDK worker execution failed.",
+        "runtime.sdk_failure",
+        "sdk_execution_failed",
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      await disposeSession(session);
+    }
+  }
+}
+
+function renderWorkerPrompt(profile: WorkerProfile, handoff: WorkerHandoff): string {
+  return [
+    "You are a clean-context pi-orc workflow worker.",
+    "Use only this worker profile and handoff. Do not assume parent chat history.",
+    "Return only JSON matching WorkerRunResultSchema.",
+    "The JSON runId must equal the handoff runId.",
+    "Shape: { runId, status, summary, artifacts, events, errors }.",
+    "status is one of success, failure, blocked. success requires errors: [].",
+    "events require type, message, timestamp. errors require code and message.",
+    "",
+    "Worker profile:",
+    JSON.stringify(profile, null, 2),
+    "",
+    "Worker handoff:",
+    JSON.stringify(handoff, null, 2)
+  ].join("\n");
+}
+
+function unwrapSession(result: PiSdkAgentSession | { session: PiSdkAgentSession }): PiSdkAgentSession {
+  return "session" in result ? result.session : result;
+}
+
+function getAssistantText(session: PiSdkAgentSession, messageStartIndex: number | undefined): string | undefined {
+  const output = getAssistantTextFromMessages(session.messages, messageStartIndex);
+
+  if (output || session.messages) {
+    return output;
+  }
+
+  return session.getLastAssistantText?.();
+}
+
+function getAssistantTextFromMessages(
+  messages: readonly PiSdkAgentMessage[] | undefined,
+  messageStartIndex: number | undefined
+): string | undefined {
+  if (!messages) {
+    return undefined;
+  }
+
+  const firstCurrentMessageIndex = messageStartIndex ?? 0;
+
+  for (let index = messages.length - 1; index >= firstCurrentMessageIndex; index -= 1) {
+    const message = messages[index];
+
+    if (!message) {
+      continue;
+    }
+
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      continue;
+    }
+
+    const text = message.content
+      .filter((content): content is { type: "text"; text: string } => isTextContent(content))
+      .map((content) => content.text)
+      .join("");
+
+    if (text.trim()) {
+      return text.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function isTextContent(content: unknown): content is { type: "text"; text: string } {
+  return (
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    content.type === "text" &&
+    "text" in content &&
+    typeof content.text === "string"
+  );
+}
+
+function parseWorkerOutput(handoff: WorkerHandoff, output: string): WorkerRunResult {
+  try {
+    const result = WorkerRunResultSchema.safeParse(JSON.parse(output));
+
+    if (!result.success) {
+      return runtimeResult(
+        handoff.runId,
+        "failure",
+        "SDK worker output failed validation.",
+        "runtime.invalid_worker_output",
+        "invalid_worker_output",
+        result.error.issues[0]?.message ?? "Worker output does not match WorkerRunResultSchema."
+      );
+    }
+
+    if (result.data.runId !== handoff.runId) {
+      return runtimeResult(
+        handoff.runId,
+        "failure",
+        "SDK worker output used the wrong run id.",
+        "runtime.invalid_worker_output",
+        "invalid_worker_output",
+        "Worker output runId must match the handoff runId."
+      );
+    }
+
+    if (result.data.status === "success") {
+      const missingFiles = handoff.expectedOutput.requiredFiles.filter(
+        (path) =>
+          !result.data.artifacts.some(
+            (artifact) => artifact.kind === "durable" && artifact.path === path && artifact.verified
+          )
+      );
+
+      if (missingFiles.length > 0) {
+        return runtimeResult(
+          handoff.runId,
+          "failure",
+          "SDK worker output missed required verified files.",
+          "runtime.output_contract_mismatch",
+          "output_contract_mismatch",
+          `Worker success is missing required verified durable artifact(s): ${missingFiles.join(", ")}`
+        );
+      }
+    }
+
+    return result.data;
+  } catch (error) {
+    return runtimeResult(
+      handoff.runId,
+      "failure",
+      "SDK worker output was not valid JSON.",
+      "runtime.invalid_worker_output",
+      "invalid_worker_output",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+function runtimeResult(
+  runId: string,
+  status: "failure" | "blocked",
+  summary: string,
+  eventType: string,
+  errorCode: string,
+  errorMessage: string
+): WorkerRunResult {
+  return {
+    runId,
+    status,
+    summary,
+    artifacts: [],
+    events: [
+      {
+        type: eventType,
+        message: summary,
+        timestamp: new Date().toISOString()
+      }
+    ],
+    errors: [
+      {
+        code: errorCode,
+        message: errorMessage
+      }
+    ]
+  };
+}
+
+async function disposeSession(session: PiSdkAgentSession | undefined): Promise<void> {
+  try {
+    await session?.dispose?.();
+  } catch {
+    // Session disposal must not turn a validated worker result into failure.
   }
 }
