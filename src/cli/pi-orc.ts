@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createBootstrapPlanDryRun } from "../index.js";
+import {
+  createBootstrapPlanDryRun,
+  decideWorkflowAction,
+  defaultWorkflowPolicies,
+  generateBootstrapPlan,
+  GhGitHubAdapter,
+  renderBootstrapPlanMarkdown
+} from "../index.js";
+import type { BootstrapFileAction, BootstrapPlan, WorkflowPolicyDecisionStatus } from "../index.js";
 import type { NewProjectIntake } from "../index.js";
 
 const sampleNewProjectIntake = {
@@ -28,7 +37,18 @@ export interface PiOrcCliStreams {
   stderr: Pick<NodeJS.WriteStream, "write">;
 }
 
-export function runPiOrcCli(args: readonly string[], streams: PiOrcCliStreams = process): number {
+export interface PiOrcCliOptions {
+  cwd?: string;
+}
+
+const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
+const targetRepoTemplateRoot = join(packageRoot, "templates", "target-repo");
+
+export function runPiOrcCli(
+  args: readonly string[],
+  streams: PiOrcCliStreams = process,
+  options: PiOrcCliOptions = {}
+): number {
   try {
     const command = parseArgs(args);
 
@@ -38,9 +58,22 @@ export function runPiOrcCli(args: readonly string[], streams: PiOrcCliStreams = 
     }
 
     const intake = command.intakePath ? readJson(command.intakePath) : sampleNewProjectIntake;
-    const dryRun = createBootstrapPlanDryRun(intake);
 
-    streams.stdout.write(`${dryRun.markdown}\n\nDry run: no GitHub, git, or file mutations executed.\n`);
+    if (command.dryRun) {
+      const dryRun = createBootstrapPlanDryRun(intake);
+
+      streams.stdout.write(`${dryRun.markdown}\n\nDry run: no GitHub, git, or file mutations executed.\n`);
+      return 0;
+    }
+
+    if (!command.intakePath) {
+      throw new Error("new-project execution requires --intake path/to/intake.json");
+    }
+
+    const plan = generateBootstrapPlan(intake);
+    const result = executeLocalBootstrap(plan, options.cwd ?? process.cwd());
+
+    streams.stdout.write(`${renderBootstrapPlanMarkdown(plan)}\n\n${renderExecutionResult(result)}`);
     return 0;
   } catch (error) {
     streams.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -51,7 +84,8 @@ export function runPiOrcCli(args: readonly string[], streams: PiOrcCliStreams = 
 
 type ParsedCommand =
   | {
-      kind: "new-project-dry-run";
+      kind: "new-project";
+      dryRun: boolean;
       intakePath?: string;
     }
   | {
@@ -94,14 +128,100 @@ function parseArgs(args: readonly string[]): ParsedCommand {
     throw new Error(`Unknown argument: ${arg ?? ""}`);
   }
 
-  if (!dryRun) {
-    throw new Error("new-project currently requires --dry-run");
-  }
-
   return {
-    kind: "new-project-dry-run",
+    kind: "new-project",
+    dryRun,
     ...(intakePath ? { intakePath } : {})
   };
+}
+
+interface LocalBootstrapExecutionResult {
+  fileDecision: WorkflowPolicyDecisionStatus;
+  filesWritten: string[];
+  githubGates: string[];
+  gitGates: string[];
+}
+
+function executeLocalBootstrap(plan: BootstrapPlan, cwd: string): LocalBootstrapExecutionResult {
+  const policy = defaultWorkflowPolicies[plan.workflowMode];
+  const writeDecision = decideWorkflowAction(policy, "write-local-files");
+  const filesWritten =
+    writeDecision.status === "allowed" ? writeTemplateFiles(cwd, plan.files) : [];
+  const githubAdapter = new GhGitHubAdapter();
+  const githubGates = plan.githubActions.map(({ action }) => {
+    const command = githubAdapter.plan(action);
+    const decision = decideWorkflowAction(policy, command.requiredPolicyAction);
+
+    return `${action.kind}: ${decision.status} (${formatCommand(command.command, command.args)})`;
+  });
+  const gitGates = plan.gitActions.map(
+    (action) => `${action.kind}: requires-confirmation (${action.command})`
+  );
+
+  return {
+    fileDecision: writeDecision.status,
+    filesWritten,
+    githubGates,
+    gitGates
+  };
+}
+
+function writeTemplateFiles(cwd: string, files: readonly BootstrapFileAction[]): string[] {
+  const targets = files.map((file) => ({
+    file,
+    outputPath: safeTargetPath(cwd, file.path)
+  }));
+  const existing = targets.find(({ outputPath }) => existsSync(outputPath));
+
+  if (existing) {
+    throw new Error(`write-local-files ${existing.file.path} failed: target already exists`);
+  }
+
+  return targets.map(({ file, outputPath }) => writeTemplateFile(file, outputPath));
+}
+
+function writeTemplateFile(file: BootstrapFileAction, outputPath: string): string {
+  try {
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, readFileSync(join(targetRepoTemplateRoot, file.template)), { flag: "wx" });
+    return file.path;
+  } catch (error) {
+    throw new Error(
+      `write-local-files ${file.path} failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+function safeTargetPath(cwd: string, path: string): string {
+  const root = resolve(cwd);
+  const target = resolve(root, path);
+  const fromRoot = relative(root, target);
+
+  if (fromRoot === ".." || fromRoot.startsWith("../") || isAbsolute(fromRoot)) {
+    throw new Error(`write-local-files ${path} failed: target path escapes ${root}`);
+  }
+
+  return target;
+}
+
+function renderExecutionResult(result: LocalBootstrapExecutionResult): string {
+  return [
+    "## Execution",
+    `write-local-files: ${result.fileDecision}`,
+    ...result.filesWritten.map((path) => `- wrote \`${path}\``),
+    "",
+    "## Confirmation Required",
+    ...result.githubGates.map((gate) => `- github ${gate}`),
+    ...result.gitGates.map((gate) => `- git ${gate}`)
+  ].join("\n");
+}
+
+function formatCommand(command: string, args: readonly string[]): string {
+  return [command, ...args].map(shellQuote).join(" ");
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9_./:=@+-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function readJson(path: string): unknown {
@@ -112,8 +232,10 @@ function helpText(): string {
   return [
     "Usage:",
     "  pi-orc new-project --dry-run [--intake path/to/intake.json]",
+    "  pi-orc new-project --intake path/to/intake.json",
     "",
-    "Prints a bootstrap plan only. Does not create repositories, projects, issues, commits, or pushes.",
+    "Dry-run prints a bootstrap plan only.",
+    "Execution writes allowed local template files. GitHub and git actions require explicit confirmation.",
     ""
   ].join("\n");
 }
