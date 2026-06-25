@@ -10,9 +10,19 @@ import {
   defaultWorkflowPolicies,
   generateBootstrapPlan,
   GhGitHubAdapter,
-  renderBootstrapPlanMarkdown
+  renderBootstrapPlanMarkdown,
+  syncPullRequestReview
 } from "../index.js";
-import type { BootstrapFileAction, BootstrapPlan, WorkflowPolicyDecisionStatus } from "../index.js";
+import type {
+  BootstrapFileAction,
+  BootstrapPlan,
+  PullRequestReviewContextAdapter,
+  PullRequestReviewItem,
+  PullRequestReviewMutationPlan,
+  PullRequestReviewSyncResult,
+  PullRequestReviewVerificationStep,
+  WorkflowPolicyDecisionStatus
+} from "../index.js";
 import type { NewProjectIntake } from "../index.js";
 
 const sampleNewProjectIntake = {
@@ -39,21 +49,34 @@ export interface PiOrcCliStreams {
 
 export interface PiOrcCliOptions {
   cwd?: string;
+  reviewAdapter?: PullRequestReviewContextAdapter;
 }
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
 const targetRepoTemplateRoot = join(packageRoot, "templates", "target-repo");
 
-export function runPiOrcCli(
+export async function runPiOrcCli(
   args: readonly string[],
   streams: PiOrcCliStreams = process,
   options: PiOrcCliOptions = {}
-): number {
+): Promise<number> {
   try {
     const command = parseArgs(args);
 
     if (command.kind === "help") {
       streams.stdout.write(helpText());
+      return 0;
+    }
+
+    if (command.kind === "sync-review") {
+      const result = await syncPullRequestReview({
+        repository: command.repository,
+        pullRequestNumber: command.pullRequestNumber,
+        policy: defaultWorkflowPolicies.assisted,
+        adapter: options.reviewAdapter ?? new GhGitHubAdapter()
+      });
+
+      streams.stdout.write(renderReviewSyncResult(result));
       return 0;
     }
 
@@ -89,6 +112,11 @@ type ParsedCommand =
       intakePath?: string;
     }
   | {
+      kind: "sync-review";
+      repository: string;
+      pullRequestNumber: number;
+    }
+  | {
       kind: "help";
     };
 
@@ -98,6 +126,10 @@ function parseArgs(args: readonly string[]): ParsedCommand {
   }
 
   const [command, ...rest] = args;
+
+  if (command === "sync-review") {
+    return parseSyncReviewArgs(rest);
+  }
 
   if (command !== "new-project") {
     throw new Error(`Unknown command: ${command ?? ""}`);
@@ -133,6 +165,66 @@ function parseArgs(args: readonly string[]): ParsedCommand {
     dryRun,
     ...(intakePath ? { intakePath } : {})
   };
+}
+
+function parseSyncReviewArgs(args: readonly string[]): ParsedCommand {
+  let repository: string | undefined;
+  let pullRequestNumber: number | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--repo") {
+      repository = args[index + 1];
+      index += 1;
+
+      if (!repository) {
+        throw new Error("--repo requires an owner/name repository");
+      }
+
+      continue;
+    }
+
+    if (arg === "--pr") {
+      pullRequestNumber = parsePullRequestNumber(args[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${arg ?? ""}`);
+  }
+
+  if (!repository) {
+    throw new Error("sync-review requires --repo owner/name");
+  }
+
+  if (!/^[^/\s]+\/[^/\s]+$/.test(repository)) {
+    throw new Error(`Invalid repository: ${repository}`);
+  }
+
+  if (!pullRequestNumber) {
+    throw new Error("sync-review requires --pr number");
+  }
+
+  return {
+    kind: "sync-review",
+    repository,
+    pullRequestNumber
+  };
+}
+
+function parsePullRequestNumber(value: string | undefined): number {
+  if (!value) {
+    throw new Error("--pr requires a pull request number");
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid pull request number: ${value}`);
+  }
+
+  return parsed;
 }
 
 interface LocalBootstrapExecutionResult {
@@ -241,6 +333,81 @@ function renderExecutionResult(result: LocalBootstrapExecutionResult): string {
   ].join("\n");
 }
 
+function renderReviewSyncResult(result: PullRequestReviewSyncResult): string {
+  return [
+    `# PR Review Sync: ${result.context.repository}#${result.context.pullRequestNumber}`,
+    "",
+    `Head: ${result.context.headSha}`,
+    `Summary: ${result.summary}`,
+    "",
+    "## Checks",
+    ...renderChecks(result),
+    "",
+    "## Bot Reactions",
+    ...renderBotReactions(result),
+    "",
+    "## Valid Review-Bot Comments",
+    ...renderReviewItems(result.verifiedValidComments, "fix"),
+    "",
+    "## Rejected Review-Bot Comments",
+    ...renderReviewItems(result.rejectedComments, "reply"),
+    "",
+    "## Unresolved Review-Bot Comments",
+    ...renderReviewItems(result.unresolvedComments, "next"),
+    "",
+    "## Verification Plan",
+    ...renderVerificationPlan(result.verificationPlan),
+    "",
+    "## Proposed Mutations",
+    ...renderMutationPlans(result.proposedMutations),
+    "",
+    "Read-only: no comments, review-thread resolutions, commits, pushes, or merges executed.",
+    ""
+  ].join("\n");
+}
+
+function renderChecks(result: PullRequestReviewSyncResult): string[] {
+  return result.context.checks.length
+    ? result.context.checks.map((check) => `- ${check.name}: ${check.state}${check.detailsUrl ? ` (${check.detailsUrl})` : ""}`)
+    : ["- none"];
+}
+
+function renderBotReactions(result: PullRequestReviewSyncResult): string[] {
+  return result.context.botReactions.length
+    ? result.context.botReactions.map((reaction) => `- ${reaction.actor}: ${reaction.reaction} at ${reaction.createdAt}`)
+    : ["- none"];
+}
+
+function renderReviewItems(items: readonly PullRequestReviewItem[], planLabel: string): string[] {
+  return items.length ? items.flatMap((item) => renderReviewItem(item, planLabel)) : ["- none"];
+}
+
+function renderReviewItem(item: PullRequestReviewItem, planLabel: string): string[] {
+  const location = item.comment.path ? ` ${item.comment.path}${item.comment.line ? `:${item.comment.line}` : ""}` : "";
+
+  return [
+    `- ${item.comment.id}${location}: ${oneLine(item.comment.body)}`,
+    `  evidence: ${item.evidence}`,
+    `  ${planLabel}: ${item.plan}`
+  ];
+}
+
+function renderVerificationPlan(steps: readonly PullRequestReviewVerificationStep[]): string[] {
+  return steps.length
+    ? steps.map((step) => `- ${step.commentId}${step.threadId ? ` in ${step.threadId}` : ""}: ${step.action}`)
+    : ["- none"];
+}
+
+function renderMutationPlans(plans: readonly PullRequestReviewMutationPlan[]): string[] {
+  return plans.length
+    ? plans.map((plan) => `- ${plan.mutation} ${plan.commentId}: ${plan.decision.status} (${plan.reason})`)
+    : ["- none"];
+}
+
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function formatCommand(command: string, args: readonly string[]): string {
   return [command, ...args].map(shellQuote).join(" ");
 }
@@ -258,9 +425,11 @@ function helpText(): string {
     "Usage:",
     "  pi-orc new-project --dry-run [--intake path/to/intake.json]",
     "  pi-orc new-project --intake path/to/intake.json",
+    "  pi-orc sync-review --repo owner/name --pr number",
     "",
     "Dry-run prints a bootstrap plan only.",
     "Execution writes allowed local template files. GitHub and git actions require explicit confirmation.",
+    "sync-review reads one PR review state and prints policy-gated next actions.",
     ""
   ].join("\n");
 }
@@ -273,5 +442,5 @@ export function isCliEntrypoint(
 }
 
 if (isCliEntrypoint()) {
-  process.exitCode = runPiOrcCli(process.argv.slice(2));
+  process.exitCode = await runPiOrcCli(process.argv.slice(2));
 }
