@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -154,9 +154,11 @@ function executeLocalBootstrap(plan: BootstrapPlan, cwd: string): LocalBootstrap
 
     return `${action.kind}: ${decision.status} (${formatCommand(command.command, command.args)})`;
   });
-  const gitGates = plan.gitActions.map(
-    (action) => `${action.kind}: requires-confirmation (${action.command})`
-  );
+  const gitGates = plan.gitActions.map((action) => {
+    const decision = decideWorkflowAction(policy, action.requiredPolicyAction);
+
+    return `${action.kind}: ${decision.status} (${action.command})`;
+  });
 
   return {
     fileDecision: writeDecision.status,
@@ -171,7 +173,14 @@ function writeTemplateFiles(cwd: string, files: readonly BootstrapFileAction[]):
     file,
     outputPath: safeTargetPath(cwd, file.path)
   }));
+  const symlinked = targets.find(({ file }) => firstSymlinkPath(cwd, file.path));
   const existing = targets.find(({ outputPath }) => existsSync(outputPath));
+
+  if (symlinked) {
+    throw new Error(
+      `write-local-files ${symlinked.file.path} failed: target path contains symlink ${firstSymlinkPath(cwd, symlinked.file.path)}`
+    );
+  }
 
   if (existing) {
     throw new Error(`write-local-files ${existing.file.path} failed: target already exists`);
@@ -202,6 +211,22 @@ function safeTargetPath(cwd: string, path: string): string {
   }
 
   return target;
+}
+
+function firstSymlinkPath(cwd: string, path: string): string | undefined {
+  const root = resolve(cwd);
+  const parts = path.split("/");
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const current = resolve(root, ...parts.slice(0, index + 1));
+    const stat = lstatSync(current, { throwIfNoEntry: false });
+
+    if (stat?.isSymbolicLink()) {
+      return relative(root, current);
+    }
+  }
+
+  return undefined;
 }
 
 function renderExecutionResult(result: LocalBootstrapExecutionResult): string {

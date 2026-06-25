@@ -101,8 +101,27 @@ describe("pi-orc CLI", () => {
       expect(result.stdout).toContain("write-local-files: requires-confirmation");
       expect(existsSync(join(dir, "AGENTS.md"))).toBe(false);
       expect(result.stdout).toContain("github create-repository: blocked");
+      expect(result.stdout).toContain("git commit: blocked");
     } finally {
       rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects symlinked target path components before writing files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-orc-symlink-"));
+    const outside = mkdtempSync(join(tmpdir(), "pi-orc-outside-"));
+
+    try {
+      const intakePath = writeIntake(dir);
+      symlinkSync(outside, join(dir, "docs"));
+      const result = run(["new-project", "--intake", intakePath], { cwd: dir });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("target path contains symlink docs");
+      expect(existsSync(join(dir, "AGENTS.md"))).toBe(false);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+      rmSync(outside, { force: true, recursive: true });
     }
   });
 
