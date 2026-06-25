@@ -25,11 +25,16 @@
   },
   "files": [
     "dist/",
+    "skills/pi-orc-new-project/",
     "templates/",
     "README.md",
     "docs/"
   ],
-  "pi": {},
+  "pi": {
+    "skills": [
+      "./skills/pi-orc-new-project/SKILL.md"
+    ]
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "0.79.x"
   },
