@@ -212,7 +212,7 @@ function parseVerifyArgs(args: readonly string[]): ParsedCommand {
       const command = args[index + 1];
       index += 1;
 
-      if (!command) {
+      if (!command || command.trim() === "") {
         throw new Error("--cmd requires a command string");
       }
 

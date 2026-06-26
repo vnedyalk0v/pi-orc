@@ -285,6 +285,13 @@ describe("pi-orc CLI", () => {
     expect(result.stderr).toContain("verify requires at least one --cmd command");
   });
 
+  it("rejects blank verification commands", async () => {
+    const result = await run(["verify", "--cmd", "   "]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--cmd requires a command string");
+  });
+
   it("writes a durable verification report when requested", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pi-orc-verify-report-"));
 
