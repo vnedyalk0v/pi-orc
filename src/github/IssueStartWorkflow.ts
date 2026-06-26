@@ -105,11 +105,14 @@ export async function startIssueWorkflow(input: IssueStartInput): Promise<IssueS
     }
   }
 
+  const executed = input.execute && mutations.some((mutation) => mutation.executed);
+  const resultContext = executed ? await input.adapter.loadIssueStartContext(ref) : context;
+
   return {
-    context,
-    status: input.execute && mutations.some((mutation) => mutation.executed) ? "executed" : "planned",
+    context: resultContext,
+    status: executed ? "executed" : "planned",
     blockers: [],
-    branchName: issueBranchName(context.issue),
+    branchName: issueBranchName(resultContext.issue),
     proposedMutations: mutations
   };
 }

@@ -42,6 +42,23 @@ function fakeAdapter(context: IssueStartContext, calls: string[] = []): IssueSta
   };
 }
 
+function sequenceAdapter(contexts: readonly IssueStartContext[], calls: string[] = []): IssueStartAdapter {
+  let index = 0;
+
+  return {
+    loadIssueStartContext: async () => contexts[Math.min(index++, contexts.length - 1)]!,
+    addIssueAssignee: async (ref: IssueStartRef) => {
+      calls.push(`assignee:${ref.assignee}`);
+    },
+    replaceIssueStatusLabels: async () => {
+      calls.push("labels");
+    },
+    setIssueProjectStatus: async () => {
+      calls.push("project-status");
+    }
+  };
+}
+
 function start(context: IssueStartContext, execute = false, calls: string[] = []) {
   return startIssueWorkflow({
     repository: "owner/repo",
@@ -77,6 +94,37 @@ describe("startIssueWorkflow", () => {
     expect(result.status).toBe("executed");
     expect(calls).toEqual(["labels", "project-status"]);
     expect(result.proposedMutations.map((mutation) => mutation.executed)).toEqual([true, true]);
+  });
+
+  it("refreshes issue and Project state after executing tracking mutations", async () => {
+    const calls: string[] = [];
+    const refreshedContext: IssueStartContext = {
+      ...baseContext,
+      issue: {
+        ...baseContext.issue,
+        labels: ["type:feature", "priority:p1", "status:in-progress", "source:manual"]
+      },
+      projectItem: {
+        ...baseContext.projectItem!,
+        status: "In Progress"
+      }
+    };
+
+    const result = await startIssueWorkflow({
+      repository: "owner/repo",
+      issueNumber: 95,
+      projectOwner: "owner",
+      projectNumber: 7,
+      assignee: "vnedyalk0v",
+      policy: defaultWorkflowPolicies.assisted,
+      adapter: sequenceAdapter([baseContext, refreshedContext], calls),
+      execute: true
+    });
+
+    expect(result.status).toBe("executed");
+    expect(calls).toEqual(["labels", "project-status"]);
+    expect(result.context.issue.labels).toContain("status:in-progress");
+    expect(result.context.projectItem?.status).toBe("In Progress");
   });
 
   it("blocks status:blocked issues before proposing a branch", async () => {
