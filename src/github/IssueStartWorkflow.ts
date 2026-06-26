@@ -137,7 +137,7 @@ export async function startIssueWorkflow(input: IssueStartInput): Promise<IssueS
 
   const executed = input.execute && mutations.some((mutation) => mutation.executed);
   const resultContext = executed ? await input.adapter.loadIssueStartContext(ref) : context;
-  const resultBlockers = executed ? issueStartBlockers(resultContext) : [];
+  const resultBlockers = executed ? issueStartReadyBlockers(resultContext, input.assignee) : [];
 
   if (resultBlockers.length > 0) {
     return {
@@ -182,6 +182,25 @@ function issueStartBlockers(context: IssueStartContext, options: { allowMissingP
         blockers.push(`Project field ${fieldName(field)} is missing.`);
       }
     }
+  }
+
+  return blockers;
+}
+
+function issueStartReadyBlockers(context: IssueStartContext, assignee: string): string[] {
+  const blockers = issueStartBlockers(context);
+  const statusLabels = context.issue.labels.filter((label) => label.startsWith(statusLabelPrefix));
+
+  if (!context.issue.assignees.includes(assignee)) {
+    blockers.push(`Issue #${context.issue.number} is not assigned to ${assignee}.`);
+  }
+
+  if (statusLabels.length !== 1 || statusLabels[0] !== inProgressLabel) {
+    blockers.push(`Issue #${context.issue.number} does not have exactly ${inProgressLabel}.`);
+  }
+
+  if (context.projectItem && context.projectItem.status !== "In Progress") {
+    blockers.push("Project Status is not In Progress.");
   }
 
   return blockers;

@@ -95,7 +95,28 @@ describe("startIssueWorkflow", () => {
 
   it("executes assisted label and Project Status updates in order when confirmed", async () => {
     const calls: string[] = [];
-    const result = await start(baseContext, true, calls);
+    const refreshedContext: IssueStartContext = {
+      ...baseContext,
+      issue: {
+        ...baseContext.issue,
+        labels: ["type:feature", "priority:p1", "status:in-progress", "source:manual"]
+      },
+      projectItem: {
+        ...baseContext.projectItem!,
+        status: "In Progress"
+      }
+    };
+
+    const result = await startIssueWorkflow({
+      repository: "owner/repo",
+      issueNumber: 95,
+      projectOwner: "owner",
+      projectNumber: 7,
+      assignee: "vnedyalk0v",
+      policy: defaultWorkflowPolicies.assisted,
+      adapter: sequenceAdapter([baseContext, refreshedContext], calls),
+      execute: true
+    });
 
     expect(result.status).toBe("executed");
     expect(calls).toEqual(["labels", "project-status"]);
@@ -131,6 +152,32 @@ describe("startIssueWorkflow", () => {
     expect(calls).toEqual(["labels", "project-status"]);
     expect(result.context.issue.labels).toContain("status:in-progress");
     expect(result.context.projectItem?.status).toBe("In Progress");
+  });
+
+  it("blocks branch proposal when executed tracking mutations do not read back", async () => {
+    const calls: string[] = [];
+    const result = await start(
+      {
+        ...baseContext,
+        issue: {
+          ...baseContext.issue,
+          assignees: []
+        }
+      },
+      true,
+      calls
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.branchName).toBeUndefined();
+    expect(calls).toEqual(["assignee:vnedyalk0v", "labels", "project-status"]);
+    expect(result.blockers).toEqual(
+      expect.arrayContaining([
+        "Issue #95 is not assigned to vnedyalk0v.",
+        "Issue #95 does not have exactly status:in-progress.",
+        "Project Status is not In Progress."
+      ])
+    );
   });
 
   it("blocks status:blocked issues before proposing a branch", async () => {
