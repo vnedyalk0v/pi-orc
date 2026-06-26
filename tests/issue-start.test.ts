@@ -262,6 +262,55 @@ describe("startIssueWorkflow", () => {
     expect(result.context.projectItem?.status).toBe("In Progress");
   });
 
+  it("sets Project Status after adding a Project item before blocking on missing fields", async () => {
+    const calls: string[] = [];
+    const missingProjectItem: IssueStartContext = {
+      ...baseContext,
+      projectItem: undefined
+    };
+    const addedProjectItemWithMissingField: IssueStartContext = {
+      ...baseContext,
+      issue: {
+        ...baseContext.issue,
+        labels: ["type:feature", "priority:p1", "status:in-progress", "source:manual"]
+      },
+      projectItem: {
+        id: "item-id",
+        status: "Todo",
+        priority: "P1",
+        type: "feature",
+        source: "manual"
+      }
+    };
+    const inProgressProjectItemWithMissingField: IssueStartContext = {
+      ...addedProjectItemWithMissingField,
+      projectItem: {
+        ...addedProjectItemWithMissingField.projectItem!,
+        status: "In Progress"
+      }
+    };
+
+    const result = await startIssueWorkflow({
+      repository: "owner/repo",
+      issueNumber: 95,
+      projectOwner: "owner",
+      projectNumber: 7,
+      assignee: "vnedyalk0v",
+      policy: defaultWorkflowPolicies.assisted,
+      adapter: sequenceAdapter(
+        [missingProjectItem, addedProjectItemWithMissingField, inProgressProjectItemWithMissingField],
+        calls
+      ),
+      execute: true
+    });
+
+    expect(result.status).toBe("blocked");
+    expect(result.branchName).toBeUndefined();
+    expect(calls).toEqual(["labels", "project-item", "project-status"]);
+    expect(result.context.projectItem?.status).toBe("In Progress");
+    expect(result.blockers).toContain("Project field Area is missing.");
+  });
+
   it("does nothing when the issue is already in progress", async () => {
     const result = await start({
       ...baseContext,

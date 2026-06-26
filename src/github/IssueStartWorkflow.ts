@@ -111,9 +111,8 @@ export async function startIssueWorkflow(input: IssueStartInput): Promise<IssueS
 
     if (mutations.some((mutation) => mutation.mutation === "add-project-item" && mutation.executed)) {
       context = await input.adapter.loadIssueStartContext(ref);
-      const postAddBlockers = issueStartBlockers(context);
 
-      if (postAddBlockers.length === 0) {
+      if (context.project && context.projectItem) {
         const executedKinds = new Set(
           mutations.filter((mutation) => mutation.executed).map((mutation) => mutation.mutation)
         );
