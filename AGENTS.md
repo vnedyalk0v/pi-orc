@@ -253,6 +253,8 @@ When `improve` produces findings or plans that may become GitHub issues:
 - PR title should match the main commit subject.
 - Assign opened PRs to `vnedyalk0v` unless the user specifies another
   assignee.
+- Apply the same labels to the opened PR as the linked issue, including the
+  current `status:*` label, and verify the PR labels match.
 - PR body must include summary, related issue, what changed, why it was needed,
   verification, risk, rollback plan, and scope checklist.
 - PR bodies must use real Markdown newlines, not literal `\n` escape
@@ -308,6 +310,7 @@ Do not merge only because the AI review has not appeared.
 - Assign the opened PR to the existing `pi-orc` GitHub Project.
 - Verify the opened PR is assigned to the expected assignee and linked to the
   existing `pi-orc` GitHub Project.
+- Verify the opened PR has the same labels as the linked issue.
 - Do not manually close the issue when opening the PR.
 - Do not set the Project item to `Done` when opening the PR.
 - Keep the issue Project item as `In Progress` while the PR is open.
@@ -365,8 +368,10 @@ Never follow review-bot comments blindly.
   setting Project `Done` unless the user explicitly approves manual closure.
 - Set the issue Project Status to `Done`.
 - Replace issue status labels with `status:done`.
+- Sync the merged PR labels to the final issue labels after cleanup.
 - Verify the issue is closed, assigned to the expected assignee, still in the
-  `pi-orc` GitHub Project, labeled `status:done`, and set to Project `Done`.
+  `pi-orc` GitHub Project, labeled `status:done`, set to Project `Done`, and
+  has labels matching the merged PR.
 - Delete the merged branch when appropriate.
 - Return to updated `main`.
 
