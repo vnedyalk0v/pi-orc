@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { isCliEntrypoint, runPiOrcCli } from "../src/cli/pi-orc.js";
 import type { PullRequestReviewContext, PullRequestReviewContextAdapter } from "../src/index.js";
+
+type CliOptions = NonNullable<Parameters<typeof runPiOrcCli>[2]>;
+type VerificationRunner = NonNullable<CliOptions["verificationRunner"]>;
 
 const baseIntake = {
   projectName: "Sandbox App",
@@ -51,7 +54,26 @@ function fakeReviewAdapter(context: PullRequestReviewContext): PullRequestReview
   };
 }
 
-async function run(args: readonly string[], options: { cwd?: string; reviewAdapter?: PullRequestReviewContextAdapter } = {}) {
+function fakeVerificationRunner(
+  results: Record<string, { exitCode: number; stdout?: string; stderr?: string }> = {}
+): VerificationRunner {
+  return async ({ command }) => {
+    const result = results[command] ?? { exitCode: 0, stdout: "ok\n", stderr: "" };
+
+    return {
+      command,
+      exitCode: result.exitCode,
+      startedAt: "2026-06-25T00:00:00.000Z",
+      finishedAt: "2026-06-25T00:00:01.000Z",
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? "",
+      stdoutTruncated: false,
+      stderrTruncated: false
+    };
+  };
+}
+
+async function run(args: readonly string[], options: CliOptions = {}) {
   let stdout = "";
   let stderr = "";
   const exitCode = await runPiOrcCli(
@@ -183,6 +205,182 @@ describe("pi-orc CLI", () => {
       symlinkSync(target, link);
 
       expect(isCliEntrypoint(link, target)).toBe(true);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
+  it("runs verification commands and prints a passing report", async () => {
+    const result = await run(["verify", "--cmd", "npm test", "--cmd", "npm run build"], {
+      verificationRunner: fakeVerificationRunner({
+        "npm test": { exitCode: 0, stdout: "  padded  " },
+        "npm run build": { exitCode: 0, stdout: "ok\n" }
+      })
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("# Verification Report");
+    expect(result.stdout).toContain("Status: pass");
+    expect(result.stdout).toContain("Artifact: stdout only; no durable report written");
+    expect(result.stdout).toContain("### 1. Command");
+    expect(result.stdout).toContain("```text\nnpm test\n```");
+    expect(result.stdout).toContain("```text\nnpm run build\n```");
+    expect(result.stdout).toContain("```text\n  padded  \n```");
+    expect(result.stdout).toContain("pi-orc raw local artifacts: not written; requested commands may write their own files");
+  });
+
+  it("returns failure when a verification command exits non-zero", async () => {
+    const result = await run(["verify", "--cmd", "npm test", "--cmd", "npm run build"], {
+      verificationRunner: fakeVerificationRunner({
+        "npm test": { exitCode: 0, stdout: "tests passed\n" },
+        "npm run build": { exitCode: 2, stderr: "build failed\n" }
+      })
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("Status: fail");
+    expect(result.stdout).toContain("```text\nnpm run build\n```");
+    expect(result.stdout).toContain("- exit code: 2");
+    expect(result.stdout).toContain("build failed");
+  });
+
+  it("uses fenced command text when commands contain backticks", async () => {
+    const command = "echo ```";
+    const result = await run(["verify", "--cmd", command], {
+      verificationRunner: fakeVerificationRunner({
+        [command]: { exitCode: 0, stdout: "ok\n" }
+      })
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("````text\necho ```\n````");
+  });
+
+  it("uses longer report fences when captured output contains backticks", async () => {
+    const result = await run(["verify", "--cmd", "npm test"], {
+      verificationRunner: fakeVerificationRunner({
+        "npm test": { exitCode: 0, stdout: "```md\n# heading\n```\n" }
+      })
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("````text\n```md\n# heading\n```\n````");
+  });
+
+  it("preserves UTF-8 output split across shell output chunks", async () => {
+    const command = `"${process.execPath}" -e "const b = Buffer.from([0xcf, 0x80]); process.stdout.write(b.subarray(0, 1)); setTimeout(() => process.stdout.write(b.subarray(1)), 0);"`;
+    const result = await run(["verify", "--cmd", command]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("π");
+    expect(result.stdout).not.toContain("�");
+  });
+
+  it("rejects verify without explicit commands", async () => {
+    const result = await run(["verify"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("verify requires at least one --cmd command");
+  });
+
+  it("rejects blank verification commands", async () => {
+    const result = await run(["verify", "--cmd", "   "]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--cmd requires a command string");
+  });
+
+  it("writes a durable verification report when requested", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-orc-verify-report-"));
+
+    try {
+      const reportPath = "docs/ai/verified-reports/verification.md";
+      const result = await run(["verify", "--cmd", "npm test", "--report", reportPath], {
+        cwd: dir,
+        verificationRunner: fakeVerificationRunner({
+          "npm test": { exitCode: 0, stdout: "verified\n" }
+        })
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain(`Report written: ${reportPath}`);
+      expect(readFileSync(join(dir, reportPath), "utf8")).toContain(
+        `Artifact: verified durable evidence at \`${reportPath}\``
+      );
+      expect(readFileSync(join(dir, reportPath), "utf8")).toContain("verified");
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects verify reports under local-only workflow state before running commands", async () => {
+    let called = false;
+    const runner: VerificationRunner = async ({ command }) => {
+      called = true;
+
+      return {
+        command,
+        exitCode: 0,
+        startedAt: "2026-06-25T00:00:00.000Z",
+        finishedAt: "2026-06-25T00:00:01.000Z",
+        stdout: "",
+        stderr: "",
+        stdoutTruncated: false,
+        stderrTruncated: false
+      };
+    };
+    const result = await run(
+      ["verify", "--cmd", "npm test", "--report", ".ai-workflow/runs/verification.md"],
+      {
+        verificationRunner: runner
+      }
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(called).toBe(false);
+    expect(result.stderr).toContain("report path is local-only workflow state");
+  });
+
+  it("rejects case variants of local-only verify report paths", async () => {
+    const result = await run(["verify", "--cmd", "npm test", "--report", ".AI-WORKFLOW/runs/verification.md"], {
+      verificationRunner: fakeVerificationRunner()
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("report path is local-only workflow state");
+  });
+
+  it("rejects verify reports that point at an existing directory before running commands", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-orc-verify-dir-"));
+    let called = false;
+    const runner: VerificationRunner = async ({ command }) => {
+      called = true;
+
+      return {
+        command,
+        exitCode: 0,
+        startedAt: "2026-06-25T00:00:00.000Z",
+        finishedAt: "2026-06-25T00:00:01.000Z",
+        stdout: "",
+        stderr: "",
+        stdoutTruncated: false,
+        stderrTruncated: false
+      };
+    };
+
+    try {
+      mkdirSync(join(dir, "docs/ai/verified-reports"), { recursive: true });
+      const result = await run(["verify", "--cmd", "npm test", "--report", "docs/ai/verified-reports"], {
+        cwd: dir,
+        verificationRunner: runner
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(called).toBe(false);
+      expect(result.stderr).toContain("report path is an existing directory");
     } finally {
       rmSync(dir, { force: true, recursive: true });
     }

@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync
+} from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -50,10 +61,12 @@ export interface PiOrcCliStreams {
 export interface PiOrcCliOptions {
   cwd?: string;
   reviewAdapter?: PullRequestReviewContextAdapter;
+  verificationRunner?: VerificationCommandRunner;
 }
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
 const targetRepoTemplateRoot = join(packageRoot, "templates", "target-repo");
+const maxVerificationOutputCharacters = 4_000;
 
 export async function runPiOrcCli(
   args: readonly string[],
@@ -78,6 +91,18 @@ export async function runPiOrcCli(
 
       streams.stdout.write(renderReviewSyncResult(result));
       return 0;
+    }
+
+    if (command.kind === "verify") {
+      const result = await runVerificationWorkflow({
+        commands: command.commands,
+        cwd: options.cwd ?? process.cwd(),
+        reportPath: command.reportPath,
+        runner: options.verificationRunner ?? runShellVerificationCommand
+      });
+
+      streams.stdout.write(renderVerificationWorkflowResult(result));
+      return result.status === "pass" ? 0 : 1;
     }
 
     const intake = command.intakePath ? readJson(command.intakePath) : sampleNewProjectIntake;
@@ -117,6 +142,11 @@ type ParsedCommand =
       pullRequestNumber: number;
     }
   | {
+      kind: "verify";
+      commands: string[];
+      reportPath?: string;
+    }
+  | {
       kind: "help";
     };
 
@@ -129,6 +159,10 @@ function parseArgs(args: readonly string[]): ParsedCommand {
 
   if (command === "sync-review") {
     return parseSyncReviewArgs(rest);
+  }
+
+  if (command === "verify") {
+    return parseVerifyArgs(rest);
   }
 
   if (command !== "new-project") {
@@ -164,6 +198,50 @@ function parseArgs(args: readonly string[]): ParsedCommand {
     kind: "new-project",
     dryRun,
     ...(intakePath ? { intakePath } : {})
+  };
+}
+
+function parseVerifyArgs(args: readonly string[]): ParsedCommand {
+  const commands: string[] = [];
+  let reportPath: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--cmd") {
+      const command = args[index + 1];
+      index += 1;
+
+      if (!command || command.trim() === "") {
+        throw new Error("--cmd requires a command string");
+      }
+
+      commands.push(command);
+      continue;
+    }
+
+    if (arg === "--report") {
+      reportPath = args[index + 1];
+      index += 1;
+
+      if (!reportPath) {
+        throw new Error("--report requires a repository-relative report path");
+      }
+
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${arg ?? ""}`);
+  }
+
+  if (commands.length === 0) {
+    throw new Error("verify requires at least one --cmd command");
+  }
+
+  return {
+    kind: "verify",
+    commands,
+    ...(reportPath ? { reportPath } : {})
   };
 }
 
@@ -321,6 +399,253 @@ function firstSymlinkPath(cwd: string, path: string): string | undefined {
   return undefined;
 }
 
+interface VerificationCommandRequest {
+  command: string;
+  cwd: string;
+  maxOutputCharacters: number;
+}
+
+interface VerificationCommandResult {
+  command: string;
+  exitCode: number;
+  startedAt: string;
+  finishedAt: string;
+  stdout: string;
+  stderr: string;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+}
+
+type VerificationCommandRunner = (request: VerificationCommandRequest) => Promise<VerificationCommandResult>;
+
+interface VerificationWorkflowResult {
+  status: "pass" | "fail";
+  startedAt: string;
+  finishedAt: string;
+  checks: VerificationCommandResult[];
+  reportPath?: string;
+  reportMarkdown: string;
+}
+
+async function runVerificationWorkflow(input: {
+  commands: readonly string[];
+  cwd: string;
+  reportPath?: string;
+  runner: VerificationCommandRunner;
+}): Promise<VerificationWorkflowResult> {
+  if (input.reportPath) {
+    preflightVerificationReportPath(input.cwd, input.reportPath);
+  }
+
+  const startedAt = new Date().toISOString();
+  const checks: VerificationCommandResult[] = [];
+
+  for (const command of input.commands) {
+    checks.push(
+      await input.runner({
+        command,
+        cwd: input.cwd,
+        maxOutputCharacters: maxVerificationOutputCharacters
+      })
+    );
+  }
+
+  const finishedAt = new Date().toISOString();
+  const result: VerificationWorkflowResult = {
+    status: checks.every((check) => check.exitCode === 0) ? "pass" : "fail",
+    startedAt,
+    finishedAt,
+    checks,
+    ...(input.reportPath ? { reportPath: input.reportPath } : {}),
+    reportMarkdown: ""
+  };
+  const reportMarkdown = renderVerificationReport(result);
+
+  if (input.reportPath) {
+    writeVerificationReport(input.cwd, input.reportPath, reportMarkdown);
+  }
+
+  return {
+    ...result,
+    reportMarkdown
+  };
+}
+
+function runShellVerificationCommand(request: VerificationCommandRequest): Promise<VerificationCommandResult> {
+  const startedAt = new Date().toISOString();
+
+  return new Promise((resolveCommand) => {
+    const child = spawn(request.command, {
+      cwd: request.cwd,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
+    let resolved = false;
+    let decodersFlushed = false;
+    const stdoutDecoder = new StringDecoder("utf8");
+    const stderrDecoder = new StringDecoder("utf8");
+
+    const appendStdout = (chunk: string) => {
+      const captured = appendCapturedOutput(stdout, chunk, request.maxOutputCharacters);
+      stdout = captured.output;
+      stdoutTruncated ||= captured.truncated;
+    };
+
+    const appendStderr = (chunk: string) => {
+      const captured = appendCapturedOutput(stderr, chunk, request.maxOutputCharacters);
+      stderr = captured.output;
+      stderrTruncated ||= captured.truncated;
+    };
+
+    const flushDecoders = () => {
+      if (decodersFlushed) {
+        return;
+      }
+
+      decodersFlushed = true;
+      appendStdout(stdoutDecoder.end());
+      appendStderr(stderrDecoder.end());
+    };
+
+    const resolveOnce = (exitCode: number) => {
+      if (resolved) {
+        return;
+      }
+
+      flushDecoders();
+      resolved = true;
+      resolveCommand({
+        command: request.command,
+        exitCode,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        stdout,
+        stderr,
+        stdoutTruncated,
+        stderrTruncated
+      });
+    };
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      appendStdout(stdoutDecoder.write(chunk));
+    });
+
+    child.stderr?.on("data", (chunk: Buffer) => {
+      appendStderr(stderrDecoder.write(chunk));
+    });
+
+    child.on("error", (error) => {
+      flushDecoders();
+      appendStderr(error.message);
+      resolveOnce(127);
+    });
+
+    child.on("close", (code) => {
+      resolveOnce(code ?? 1);
+    });
+  });
+}
+
+function appendCapturedOutput(
+  current: string,
+  chunk: string,
+  maxCharacters: number
+): { output: string; truncated: boolean } {
+  if (current.length >= maxCharacters) {
+    return {
+      output: current,
+      truncated: chunk.length > 0
+    };
+  }
+
+  const remaining = maxCharacters - current.length;
+
+  return {
+    output: `${current}${chunk.slice(0, remaining)}`,
+    truncated: chunk.length > remaining
+  };
+}
+
+function safeVerificationReportPath(cwd: string, path: string): string {
+  if (!isSafeRelativeReportPath(path)) {
+    throw new Error(`verify report ${path} failed: report path must be repository-relative`);
+  }
+
+  if (isLocalOnlyReportPath(path)) {
+    throw new Error(`verify report ${path} failed: report path is local-only workflow state`);
+  }
+
+  const symlink = firstSymlinkPath(cwd, path);
+
+  if (symlink) {
+    throw new Error(`verify report ${path} failed: target path contains symlink ${symlink}`);
+  }
+
+  const root = resolve(cwd);
+  const target = resolve(root, path);
+  const fromRoot = relative(root, target);
+
+  if (fromRoot === ".." || fromRoot.startsWith("../") || isAbsolute(fromRoot)) {
+    throw new Error(`verify report ${path} failed: target path escapes ${root}`);
+  }
+
+  return target;
+}
+
+function preflightVerificationReportPath(cwd: string, path: string): void {
+  const outputPath = safeVerificationReportPath(cwd, path);
+  const outputStat = lstatSync(outputPath, { throwIfNoEntry: false });
+
+  if (outputStat?.isDirectory()) {
+    throw new Error(`verify report ${path} failed: report path is an existing directory`);
+  }
+
+  try {
+    mkdirSync(dirname(outputPath), { recursive: true });
+    accessSync(outputStat ? outputPath : dirname(outputPath), constants.W_OK);
+  } catch (error) {
+    throw new Error(
+      `verify report ${path} failed: report path is not writable (${error instanceof Error ? error.message : String(error)})`
+    );
+  }
+}
+
+function isSafeRelativeReportPath(path: string): boolean {
+  const segments = path.split("/");
+
+  return (
+    !path.startsWith("/") &&
+    !/^[A-Za-z]:/.test(path) &&
+    !path.includes("\\") &&
+    segments.every((segment) => segment !== "" && segment !== "." && segment !== "..")
+  );
+}
+
+function isLocalOnlyReportPath(path: string): boolean {
+  const normalizedPath = path.toLowerCase();
+
+  return [".ai-workflow/runs/", ".ai-workflow/cache/", ".ai-workflow/tmp/"].some(
+    (root) => normalizedPath === root.slice(0, -1) || normalizedPath.startsWith(root)
+  );
+}
+
+function writeVerificationReport(cwd: string, reportPath: string, reportMarkdown: string): void {
+  const outputPath = safeVerificationReportPath(cwd, reportPath);
+
+  try {
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, reportMarkdown);
+  } catch (error) {
+    throw new Error(
+      `verify report ${reportPath} failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
 function renderExecutionResult(result: LocalBootstrapExecutionResult): string {
   return [
     "## Execution",
@@ -331,6 +656,67 @@ function renderExecutionResult(result: LocalBootstrapExecutionResult): string {
     ...result.githubGates.map((gate) => `- github ${gate}`),
     ...result.gitGates.map((gate) => `- git ${gate}`)
   ].join("\n");
+}
+
+function renderVerificationWorkflowResult(result: VerificationWorkflowResult): string {
+  return [
+    result.reportMarkdown,
+    result.reportPath ? `Report written: ${result.reportPath}` : "Report not written: no --report path requested.",
+    ""
+  ].join("\n");
+}
+
+function renderVerificationReport(result: VerificationWorkflowResult): string {
+  return [
+    "# Verification Report",
+    "",
+    `Status: ${result.status}`,
+    `Started: ${result.startedAt}`,
+    `Finished: ${result.finishedAt}`,
+    result.reportPath
+      ? `Artifact: verified durable evidence at \`${result.reportPath}\``
+      : "Artifact: stdout only; no durable report written",
+    "pi-orc raw local artifacts: not written; requested commands may write their own files",
+    "",
+    "## Checks",
+    ...result.checks.flatMap((check, index) => renderVerificationCheck(check, index)),
+    ""
+  ].join("\n");
+}
+
+function renderVerificationCheck(check: VerificationCommandResult, index: number): string[] {
+  return [
+    `### ${index + 1}. Command`,
+    "command:",
+    markdownCodeBlock(check.command),
+    `- result: ${check.exitCode === 0 ? "pass" : "fail"}`,
+    `- exit code: ${check.exitCode}`,
+    `- started: ${check.startedAt}`,
+    `- finished: ${check.finishedAt}`,
+    "",
+    ...renderCapturedOutput("stdout", check.stdout, check.stdoutTruncated),
+    "",
+    ...renderCapturedOutput("stderr", check.stderr, check.stderrTruncated),
+    ""
+  ];
+}
+
+function renderCapturedOutput(label: string, output: string, truncated: boolean): string[] {
+  return [
+    `${label}:`,
+    markdownCodeBlock(output === "" ? "(empty)" : output),
+    ...(truncated ? [`${label} truncated to ${maxVerificationOutputCharacters} characters.`] : [])
+  ];
+}
+
+function markdownCodeBlock(output: string): string {
+  const fence = "`".repeat(Math.max(3, longestBacktickRun(output) + 1));
+
+  return `${fence}text\n${output.endsWith("\n") ? output : `${output}\n`}${fence}`;
+}
+
+function longestBacktickRun(output: string): number {
+  return Math.max(0, ...Array.from(output.matchAll(/`+/g), (match) => match[0].length));
 }
 
 function renderReviewSyncResult(result: PullRequestReviewSyncResult): string {
@@ -426,10 +812,12 @@ function helpText(): string {
     "  pi-orc new-project --dry-run [--intake path/to/intake.json]",
     "  pi-orc new-project --intake path/to/intake.json",
     "  pi-orc sync-review --repo owner/name --pr number",
+    "  pi-orc verify --cmd \"npm test\" [--cmd \"npm run build\"] [--report docs/ai/verified-reports/report.md]",
     "",
     "Dry-run prints a bootstrap plan only.",
     "Execution writes allowed local template files. GitHub and git actions require explicit confirmation.",
     "sync-review reads one PR review state and prints policy-gated next actions.",
+    "verify runs explicit local checks and optionally writes a durable verification report.",
     ""
   ].join("\n");
 }
