@@ -438,9 +438,24 @@ describe("pi-orc CLI", () => {
   });
 
   it("prints a dry-run start-issue plan for one explicit issue", async () => {
-    const result = await run(["start-issue", "--repo", "owner/repo", "--issue", "95", "--project-owner", "owner", "--project", "7"], {
-      issueStartAdapter: fakeIssueStartAdapter(baseIssueStartContext)
-    });
+    const result = await run(
+      [
+        "start-issue",
+        "--repo",
+        "owner/repo",
+        "--issue",
+        "95",
+        "--project-owner",
+        "owner",
+        "--project",
+        "7",
+        "--assignee",
+        "vnedyalk0v"
+      ],
+      {
+        issueStartAdapter: fakeIssueStartAdapter(baseIssueStartContext)
+      }
+    );
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
@@ -458,6 +473,15 @@ describe("pi-orc CLI", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("start-issue requires --issue number");
+  });
+
+  it("rejects start-issue without an explicit assignee", async () => {
+    const result = await run(["start-issue", "--repo", "owner/repo", "--issue", "95", "--project-owner", "owner", "--project", "7"], {
+      issueStartAdapter: fakeIssueStartAdapter(baseIssueStartContext)
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("start-issue requires --assignee user");
   });
 
   it("prints valid sync-review comments with policy-gated reply plans", async () => {

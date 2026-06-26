@@ -408,13 +408,17 @@ function parseIssueStartArgs(args: readonly string[]): ParsedCommand {
     throw new Error("start-issue requires --project number");
   }
 
+  if (!assignee) {
+    throw new Error("start-issue requires --assignee user");
+  }
+
   return {
     kind: "start-issue",
     repository,
     issueNumber,
     projectOwner,
     projectNumber,
-    assignee: assignee ?? repository.split("/")[0] ?? projectOwner,
+    assignee,
     execute
   };
 }
@@ -996,7 +1000,7 @@ function helpText(): string {
     "  pi-orc new-project --dry-run [--intake path/to/intake.json]",
     "  pi-orc new-project --intake path/to/intake.json",
     "  pi-orc sync-review --repo owner/name --pr number",
-    "  pi-orc start-issue --repo owner/name --issue number --project-owner owner --project number [--assignee user] [--execute]",
+    "  pi-orc start-issue --repo owner/name --issue number --project-owner owner --project number --assignee user [--execute]",
     "  pi-orc verify --cmd \"npm test\" [--cmd \"npm run build\"] [--report docs/ai/verified-reports/report.md]",
     "",
     "Dry-run prints a bootstrap plan only.",

@@ -39,7 +39,7 @@ npm run build
 node dist/cli/pi-orc.js --help
 node dist/cli/pi-orc.js new-project --dry-run
 node dist/cli/pi-orc.js sync-review --repo owner/name --pr 123
-node dist/cli/pi-orc.js start-issue --repo owner/name --issue 95 --project-owner owner --project 7
+node dist/cli/pi-orc.js start-issue --repo owner/name --issue 95 --project-owner owner --project 7 --assignee user
 node dist/cli/pi-orc.js verify --cmd "npm test"
 node dist/cli/pi-orc.js verify --cmd "npm test" --report docs/ai/verified-reports/report.md
 ```
