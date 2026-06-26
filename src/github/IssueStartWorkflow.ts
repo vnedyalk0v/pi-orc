@@ -47,11 +47,16 @@ export interface IssueStartContext {
 export interface IssueStartAdapter {
   loadIssueStartContext(ref: IssueStartRef): Promise<IssueStartContext>;
   addIssueAssignee(ref: IssueStartRef): Promise<void>;
+  addIssueToProject(ref: IssueStartRef, issueUrl: string): Promise<void>;
   replaceIssueStatusLabels(ref: IssueStartRef, currentLabels: readonly string[]): Promise<void>;
   setIssueProjectStatus(ref: IssueStartRef, project: IssueStartProject, item: IssueStartProjectItem): Promise<void>;
 }
 
-export type IssueStartMutationKind = "add-assignee" | "replace-status-label" | "set-project-status";
+export type IssueStartMutationKind =
+  | "add-assignee"
+  | "add-project-item"
+  | "replace-status-label"
+  | "set-project-status";
 
 export interface IssueStartMutationPlan {
   mutation: IssueStartMutationKind;
@@ -80,8 +85,8 @@ export async function startIssueWorkflow(input: IssueStartInput): Promise<IssueS
     projectNumber: input.projectNumber,
     assignee: input.assignee
   };
-  const context = await input.adapter.loadIssueStartContext(ref);
-  const blockers = issueStartBlockers(context);
+  let context = await input.adapter.loadIssueStartContext(ref);
+  const blockers = issueStartBlockers(context, { allowMissingProjectItem: true });
 
   if (blockers.length > 0) {
     return {
@@ -103,10 +108,45 @@ export async function startIssueWorkflow(input: IssueStartInput): Promise<IssueS
       await executeIssueStartMutation(input.adapter, ref, context, mutation);
       mutation.executed = true;
     }
+
+    if (mutations.some((mutation) => mutation.mutation === "add-project-item" && mutation.executed)) {
+      context = await input.adapter.loadIssueStartContext(ref);
+      const postAddBlockers = issueStartBlockers(context);
+
+      if (postAddBlockers.length === 0) {
+        const executedKinds = new Set(
+          mutations.filter((mutation) => mutation.executed).map((mutation) => mutation.mutation)
+        );
+        const followUpMutations = issueStartMutations(input.policy, context, input.assignee).filter(
+          (mutation) => !executedKinds.has(mutation.mutation)
+        );
+
+        for (const mutation of followUpMutations) {
+          if (mutation.decision.status === "blocked") {
+            continue;
+          }
+
+          await executeIssueStartMutation(input.adapter, ref, context, mutation);
+          mutation.executed = true;
+        }
+
+        mutations.push(...followUpMutations);
+      }
+    }
   }
 
   const executed = input.execute && mutations.some((mutation) => mutation.executed);
   const resultContext = executed ? await input.adapter.loadIssueStartContext(ref) : context;
+  const resultBlockers = executed ? issueStartBlockers(resultContext) : [];
+
+  if (resultBlockers.length > 0) {
+    return {
+      context: resultContext,
+      status: "blocked",
+      blockers: resultBlockers,
+      proposedMutations: mutations
+    };
+  }
 
   return {
     context: resultContext,
@@ -117,7 +157,7 @@ export async function startIssueWorkflow(input: IssueStartInput): Promise<IssueS
   };
 }
 
-function issueStartBlockers(context: IssueStartContext): string[] {
+function issueStartBlockers(context: IssueStartContext, options: { allowMissingProjectItem?: boolean } = {}): string[] {
   const blockers: string[] = [];
 
   if (context.issue.state !== "open") {
@@ -128,7 +168,7 @@ function issueStartBlockers(context: IssueStartContext): string[] {
     blockers.push(`Issue #${context.issue.number} has status:blocked.`);
   }
 
-  if (!context.projectItem) {
+  if (!context.projectItem && !options.allowMissingProjectItem) {
     blockers.push(`Issue #${context.issue.number} is missing from the GitHub Project.`);
   }
 
@@ -173,7 +213,16 @@ function issueStartMutations(
     });
   }
 
-  if (context.projectItem?.status !== "In Progress") {
+  if (!context.projectItem) {
+    mutations.push({
+      mutation: "add-project-item",
+      decision: decideWorkflowAction(policy, "add-issue-to-project"),
+      reason: "add issue to GitHub Project",
+      executed: false
+    });
+  }
+
+  if (context.projectItem && context.projectItem.status !== "In Progress") {
     mutations.push({
       mutation: "set-project-status",
       decision: decideWorkflowAction(policy, "edit-github-project-item"),
@@ -194,6 +243,9 @@ async function executeIssueStartMutation(
   switch (mutation.mutation) {
     case "add-assignee":
       await adapter.addIssueAssignee(ref);
+      return;
+    case "add-project-item":
+      await adapter.addIssueToProject(ref, context.issue.url);
       return;
     case "replace-status-label":
       await adapter.replaceIssueStatusLabels(ref, context.issue.labels);

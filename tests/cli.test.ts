@@ -87,6 +87,7 @@ function fakeIssueStartAdapter(context: IssueStartContext): IssueStartAdapter {
   return {
     loadIssueStartContext: async () => context,
     addIssueAssignee: async () => {},
+    addIssueToProject: async () => {},
     replaceIssueStatusLabels: async () => {},
     setIssueProjectStatus: async () => {}
   };

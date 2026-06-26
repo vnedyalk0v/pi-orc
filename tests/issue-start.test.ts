@@ -33,6 +33,9 @@ function fakeAdapter(context: IssueStartContext, calls: string[] = []): IssueSta
     addIssueAssignee: async (ref: IssueStartRef) => {
       calls.push(`assignee:${ref.assignee}`);
     },
+    addIssueToProject: async () => {
+      calls.push("project-item");
+    },
     replaceIssueStatusLabels: async () => {
       calls.push("labels");
     },
@@ -49,6 +52,9 @@ function sequenceAdapter(contexts: readonly IssueStartContext[], calls: string[]
     loadIssueStartContext: async () => contexts[Math.min(index++, contexts.length - 1)]!,
     addIssueAssignee: async (ref: IssueStartRef) => {
       calls.push(`assignee:${ref.assignee}`);
+    },
+    addIssueToProject: async () => {
+      calls.push("project-item");
     },
     replaceIssueStatusLabels: async () => {
       calls.push("labels");
@@ -158,14 +164,55 @@ describe("startIssueWorkflow", () => {
     expect(result.blockers).toContain("Project field Area is missing.");
   });
 
-  it("blocks missing Project items", async () => {
+  it("plans adding missing Project items", async () => {
     const result = await start({
       ...baseContext,
       projectItem: undefined
     });
 
-    expect(result.status).toBe("blocked");
-    expect(result.blockers).toContain("Issue #95 is missing from the GitHub Project.");
+    expect(result.status).toBe("planned");
+    expect(result.blockers).toEqual([]);
+    expect(result.proposedMutations.map((mutation) => [mutation.mutation, mutation.decision.status])).toEqual([
+      ["replace-status-label", "requires-confirmation"],
+      ["add-project-item", "requires-confirmation"]
+    ]);
+  });
+
+  it("executes missing Project item repair before setting Project Status", async () => {
+    const calls: string[] = [];
+    const missingProjectItem: IssueStartContext = {
+      ...baseContext,
+      projectItem: undefined
+    };
+    const addedProjectItem: IssueStartContext = {
+      ...baseContext,
+      issue: {
+        ...baseContext.issue,
+        labels: ["type:feature", "priority:p1", "status:in-progress", "source:manual"]
+      }
+    };
+    const inProgressProjectItem: IssueStartContext = {
+      ...addedProjectItem,
+      projectItem: {
+        ...baseContext.projectItem!,
+        status: "In Progress"
+      }
+    };
+
+    const result = await startIssueWorkflow({
+      repository: "owner/repo",
+      issueNumber: 95,
+      projectOwner: "owner",
+      projectNumber: 7,
+      assignee: "vnedyalk0v",
+      policy: defaultWorkflowPolicies.assisted,
+      adapter: sequenceAdapter([missingProjectItem, addedProjectItem, inProgressProjectItem], calls),
+      execute: true
+    });
+
+    expect(result.status).toBe("executed");
+    expect(calls).toEqual(["labels", "project-item", "project-status"]);
+    expect(result.context.projectItem?.status).toBe("In Progress");
   });
 
   it("does nothing when the issue is already in progress", async () => {

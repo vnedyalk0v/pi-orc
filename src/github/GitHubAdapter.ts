@@ -470,6 +470,22 @@ export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextA
     );
   }
 
+  async addIssueToProject(ref: IssueStartRef, issueUrl: string): Promise<void> {
+    assertGhSuccess(
+      await this.run([
+        "project",
+        "item-add",
+        String(ref.projectNumber),
+        "--owner",
+        ref.projectOwner,
+        "--url",
+        issueUrl,
+        "--format",
+        "json"
+      ])
+    );
+  }
+
   async replaceIssueStatusLabels(ref: IssueStartRef, currentLabels: readonly string[]): Promise<void> {
     const statusLabels = currentLabels
       .filter((label) => label.startsWith("status:"))

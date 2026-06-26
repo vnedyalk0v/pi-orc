@@ -138,6 +138,16 @@ describe("GhGitHubAdapter", () => {
       },
       ["status:ready", "status:in-progress"]
     );
+    await adapter.addIssueToProject(
+      {
+        repository: "owner/repo",
+        issueNumber: 95,
+        projectOwner: "owner",
+        projectNumber: 7,
+        assignee: "vnedyalk0v"
+      },
+      "https://github.com/owner/repo/issues/95"
+    );
     await adapter.setIssueProjectStatus(
       {
         repository: "owner/repo",
@@ -174,6 +184,17 @@ describe("GhGitHubAdapter", () => {
       "status:ready"
     ]);
     expect(calls[5]).toEqual([
+      "project",
+      "item-add",
+      "7",
+      "--owner",
+      "owner",
+      "--url",
+      "https://github.com/owner/repo/issues/95",
+      "--format",
+      "json"
+    ]);
+    expect(calls[6]).toEqual([
       "project",
       "item-edit",
       "--id",
