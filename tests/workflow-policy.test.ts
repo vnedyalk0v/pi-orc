@@ -32,6 +32,8 @@ describe("default workflow policies", () => {
 
     expect(decideWorkflowAction(assisted, "write-local-files").status).toBe("allowed");
     expect(decideWorkflowAction(assisted, "run-local-command").status).toBe("allowed");
+    expect(decideWorkflowAction(assisted, "edit-github-issue").status).toBe("requires-confirmation");
+    expect(decideWorkflowAction(assisted, "edit-github-project-item").status).toBe("requires-confirmation");
     expect(decideWorkflowAction(assisted, "create-pull-request").status).toBe("requires-confirmation");
     expect(decideWorkflowAction(assisted, "resolve-review-thread").status).toBe("requires-confirmation");
     expect(decideWorkflowAction(assisted, "push").status).toBe("requires-confirmation");

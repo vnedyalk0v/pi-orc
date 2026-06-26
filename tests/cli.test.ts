@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { isCliEntrypoint, runPiOrcCli } from "../src/cli/pi-orc.js";
-import type { PullRequestReviewContext, PullRequestReviewContextAdapter } from "../src/index.js";
+import type {
+  IssueStartAdapter,
+  IssueStartContext,
+  PullRequestReviewContext,
+  PullRequestReviewContextAdapter
+} from "../src/index.js";
 
 type CliOptions = NonNullable<Parameters<typeof runPiOrcCli>[2]>;
 type VerificationRunner = NonNullable<CliOptions["verificationRunner"]>;
@@ -48,9 +53,43 @@ const baseReviewContext: PullRequestReviewContext = {
   ]
 };
 
+const baseIssueStartContext: IssueStartContext = {
+  issue: {
+    number: 95,
+    title: "feat(cli): add issue start workflow",
+    state: "open",
+    url: "https://github.com/owner/repo/issues/95",
+    labels: ["type:feature", "priority:p1", "status:ready", "source:manual"],
+    assignees: ["vnedyalk0v"]
+  },
+  project: {
+    id: "project-id",
+    statusFieldId: "status-field-id",
+    inProgressOptionId: "in-progress-option-id"
+  },
+  projectItem: {
+    id: "item-id",
+    status: "Todo",
+    priority: "P1",
+    type: "feature",
+    area: "workflow",
+    source: "manual"
+  }
+};
+
 function fakeReviewAdapter(context: PullRequestReviewContext): PullRequestReviewContextAdapter {
   return {
     loadPullRequestReviewContext: async () => context
+  };
+}
+
+function fakeIssueStartAdapter(context: IssueStartContext): IssueStartAdapter {
+  return {
+    loadIssueStartContext: async () => context,
+    addIssueAssignee: async () => {},
+    addIssueToProject: async () => {},
+    replaceIssueStatusLabels: async () => {},
+    setIssueProjectStatus: async () => {}
   };
 }
 
@@ -397,6 +436,53 @@ describe("pi-orc CLI", () => {
     expect(result.stdout).toContain("Summary: 0 valid, 0 rejected, 0 unresolved review-bot comment(s).");
     expect(result.stdout).toContain("- verify: success");
     expect(result.stdout).toContain("Read-only: no comments, review-thread resolutions, commits, pushes, or merges executed.");
+  });
+
+  it("prints a dry-run start-issue plan for one explicit issue", async () => {
+    const result = await run(
+      [
+        "start-issue",
+        "--repo",
+        "owner/repo",
+        "--issue",
+        "95",
+        "--project-owner",
+        "owner",
+        "--project",
+        "7",
+        "--assignee",
+        "vnedyalk0v"
+      ],
+      {
+        issueStartAdapter: fakeIssueStartAdapter(baseIssueStartContext)
+      }
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("# Issue Start: https://github.com/owner/repo/issues/95");
+    expect(result.stdout).toContain("- replace-status-label: requires-confirmation; executed=false");
+    expect(result.stdout).toContain("- set-project-status: requires-confirmation; executed=false");
+    expect(result.stdout).toContain("Proposed: feat/add-issue-start-workflow");
+    expect(result.stdout).toContain("Dry run: no GitHub issue/project mutations executed.");
+  });
+
+  it("rejects start-issue without one explicit issue", async () => {
+    const result = await run(["start-issue", "--repo", "owner/repo", "--project-owner", "owner", "--project", "7"], {
+      issueStartAdapter: fakeIssueStartAdapter(baseIssueStartContext)
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("start-issue requires --issue number");
+  });
+
+  it("rejects start-issue without an explicit assignee", async () => {
+    const result = await run(["start-issue", "--repo", "owner/repo", "--issue", "95", "--project-owner", "owner", "--project", "7"], {
+      issueStartAdapter: fakeIssueStartAdapter(baseIssueStartContext)
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("start-issue requires --assignee user");
   });
 
   it("prints valid sync-review comments with policy-gated reply plans", async () => {

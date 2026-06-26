@@ -16,6 +16,7 @@ workflow automation will build on.
 - supports `pi-orc new-project --dry-run`
 - supports assisted local template writes with `pi-orc new-project --intake`
 - supports read-only PR review summaries with `pi-orc sync-review --repo --pr`
+- supports issue-start tracking checks with `pi-orc start-issue --repo --issue`
 - supports explicit verification commands with `pi-orc verify --cmd`
 - validates new-project intake with typed schemas
 - renders planned repository files, GitHub actions, git actions, and policy
@@ -38,6 +39,7 @@ npm run build
 node dist/cli/pi-orc.js --help
 node dist/cli/pi-orc.js new-project --dry-run
 node dist/cli/pi-orc.js sync-review --repo owner/name --pr 123
+node dist/cli/pi-orc.js start-issue --repo owner/name --issue 95 --project-owner owner --project 7 --assignee user
 node dist/cli/pi-orc.js verify --cmd "npm test"
 node dist/cli/pi-orc.js verify --cmd "npm test" --report docs/ai/verified-reports/report.md
 ```
@@ -115,9 +117,11 @@ Main exports include:
 - `decideWorkflowAction`
 - `PiSdkWorkerRuntime`
 - `GhGitHubAdapter`
+- `startIssueWorkflow`
 
 The package also exports the related TypeScript types for worker profiles,
-handoffs, workflow policies, bootstrap plans, and GitHub actions.
+handoffs, workflow policies, bootstrap plans, GitHub actions, and issue-start
+workflows.
 
 The default planning and verification profiles are clean-context worker
 profiles. They allow only scoped planning/report output, deny GitHub mutation,

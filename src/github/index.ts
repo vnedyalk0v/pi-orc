@@ -1,4 +1,5 @@
 export { GhGitHubAdapter } from "./GitHubAdapter.js";
+export { startIssueWorkflow } from "./IssueStartWorkflow.js";
 export { syncPullRequestReview } from "./PullRequestReviewSync.js";
 export type {
   AddProjectItemAction,
@@ -17,6 +18,18 @@ export type {
   GitHubRepositoryVisibility,
   LinkProjectAction
 } from "./GitHubAdapter.js";
+export type {
+  IssueStartAdapter,
+  IssueStartContext,
+  IssueStartInput,
+  IssueStartIssue,
+  IssueStartMutationKind,
+  IssueStartMutationPlan,
+  IssueStartProject,
+  IssueStartProjectItem,
+  IssueStartRef,
+  IssueStartResult
+} from "./IssueStartWorkflow.js";
 export type {
   PullRequestBotReaction,
   PullRequestCheck,

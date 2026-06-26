@@ -3,7 +3,7 @@ export const packageInfo = {
   description: "Pi Orchestrator for verified AI development workflows."
 } as const;
 
-export { GhGitHubAdapter, syncPullRequestReview } from "./github/index.js";
+export { GhGitHubAdapter, startIssueWorkflow, syncPullRequestReview } from "./github/index.js";
 export { createBootstrapPlanDryRun, generateBootstrapPlan, renderBootstrapPlanMarkdown } from "./repo-bootstrap/index.js";
 export {
   decideWorkflowAction,
@@ -81,6 +81,16 @@ export type {
   GitHubCommandRunner,
   GitHubExecuteOptions,
   GitHubRepositoryVisibility,
+  IssueStartAdapter,
+  IssueStartContext,
+  IssueStartInput,
+  IssueStartIssue,
+  IssueStartMutationKind,
+  IssueStartMutationPlan,
+  IssueStartProject,
+  IssueStartProjectItem,
+  IssueStartRef,
+  IssueStartResult,
   LinkProjectAction,
   PullRequestBotReaction,
   PullRequestCheck,
