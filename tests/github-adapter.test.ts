@@ -22,6 +22,160 @@ describe("GhGitHubAdapter", () => {
     });
   });
 
+  it("loads issue-start context and mutates tracking through gh", async () => {
+    const calls: string[][] = [];
+    const adapter = new GhGitHubAdapter(async (args) => {
+      calls.push([...args]);
+
+      if (args[0] === "issue" && args[1] === "view") {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            number: 95,
+            title: "feat(cli): add issue start workflow",
+            state: "OPEN",
+            url: "https://github.com/owner/repo/issues/95",
+            labels: [{ name: "status:ready" }, { name: "type:feature" }],
+            assignees: [{ login: "vnedyalk0v" }]
+          }),
+          stderr: ""
+        };
+      }
+
+      if (args[0] === "project" && args[1] === "view") {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({ id: "project-id" }),
+          stderr: ""
+        };
+      }
+
+      if (args[0] === "project" && args[1] === "field-list") {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            fields: [
+              {
+                id: "status-field-id",
+                name: "Status",
+                options: [{ id: "in-progress-option-id", name: "In Progress" }]
+              }
+            ]
+          }),
+          stderr: ""
+        };
+      }
+
+      if (args[0] === "project" && args[1] === "item-list") {
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            items: [
+              {
+                id: "item-id",
+                status: "Todo",
+                priority: "P1",
+                type: "feature",
+                area: "workflow",
+                source: "manual",
+                content: { number: 95 }
+              }
+            ]
+          }),
+          stderr: ""
+        };
+      }
+
+      return {
+        exitCode: 0,
+        stdout: "",
+        stderr: ""
+      };
+    });
+
+    await expect(
+      adapter.loadIssueStartContext({
+        repository: "owner/repo",
+        issueNumber: 95,
+        projectOwner: "owner",
+        projectNumber: 7,
+        assignee: "vnedyalk0v"
+      })
+    ).resolves.toMatchObject({
+      issue: {
+        number: 95,
+        state: "open",
+        labels: ["status:ready", "type:feature"]
+      },
+      project: {
+        id: "project-id",
+        statusFieldId: "status-field-id",
+        inProgressOptionId: "in-progress-option-id"
+      },
+      projectItem: {
+        id: "item-id",
+        status: "Todo",
+        area: "workflow"
+      }
+    });
+
+    await adapter.replaceIssueStatusLabels(
+      {
+        repository: "owner/repo",
+        issueNumber: 95,
+        projectOwner: "owner",
+        projectNumber: 7,
+        assignee: "vnedyalk0v"
+      },
+      ["status:ready", "status:in-progress"]
+    );
+    await adapter.setIssueProjectStatus(
+      {
+        repository: "owner/repo",
+        issueNumber: 95,
+        projectOwner: "owner",
+        projectNumber: 7,
+        assignee: "vnedyalk0v"
+      },
+      {
+        id: "project-id",
+        statusFieldId: "status-field-id",
+        inProgressOptionId: "in-progress-option-id"
+      },
+      {
+        id: "item-id"
+      }
+    );
+
+    expect(calls.slice(0, 4).map((call) => call.slice(0, 2))).toEqual([
+      ["issue", "view"],
+      ["project", "view"],
+      ["project", "field-list"],
+      ["project", "item-list"]
+    ]);
+    expect(calls[4]).toEqual([
+      "issue",
+      "edit",
+      "95",
+      "--repo",
+      "owner/repo",
+      "--remove-label",
+      "status:ready"
+    ]);
+    expect(calls[5]).toEqual([
+      "project",
+      "item-edit",
+      "--id",
+      "item-id",
+      "--project-id",
+      "project-id",
+      "--field-id",
+      "status-field-id",
+      "--single-select-option-id",
+      "in-progress-option-id"
+    ]);
+  });
+
   it("loads PR review context through read-only gh commands", async () => {
     const calls: string[][] = [];
     const adapter = new GhGitHubAdapter(async (args) => {

@@ -2,6 +2,13 @@ import { spawn } from "node:child_process";
 
 import type { WorkflowActionCategory } from "../runtime/index.js";
 import type {
+  IssueStartAdapter,
+  IssueStartContext,
+  IssueStartProject,
+  IssueStartProjectItem,
+  IssueStartRef
+} from "./IssueStartWorkflow.js";
+import type {
   PullRequestBotReaction,
   PullRequestCheck,
   PullRequestCheckState,
@@ -275,7 +282,53 @@ interface GhReaction {
   created_at?: string;
 }
 
-export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextAdapter {
+interface GhIssueView {
+  number: number;
+  title: string;
+  state: string;
+  url: string;
+  labels: readonly {
+    name: string;
+  }[];
+  assignees: readonly {
+    login: string;
+  }[];
+}
+
+interface GhProjectView {
+  id: string;
+}
+
+interface GhProjectFieldList {
+  fields: readonly GhProjectField[];
+}
+
+interface GhProjectField {
+  id: string;
+  name: string;
+  options?: readonly {
+    id: string;
+    name: string;
+  }[];
+}
+
+interface GhProjectItemList {
+  items: readonly GhProjectItem[];
+}
+
+interface GhProjectItem {
+  id: string;
+  status?: string;
+  priority?: string;
+  type?: string;
+  area?: string;
+  source?: string;
+  content?: {
+    number?: number;
+  };
+}
+
+export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextAdapter, IssueStartAdapter {
   constructor(private readonly run: GitHubCommandRunner = runGhCommand) {}
 
   async checkAuth(hostname?: string): Promise<GitHubAuthCheck> {
@@ -354,6 +407,106 @@ export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextA
         .map(mapReaction)
         .filter((reaction) => reaction.actor === reviewBotLogin)
     };
+  }
+
+  async loadIssueStartContext(ref: IssueStartRef): Promise<IssueStartContext> {
+    const issue = parseJson<GhIssueView>(
+      await this.run([
+        "issue",
+        "view",
+        String(ref.issueNumber),
+        "--repo",
+        ref.repository,
+        "--json",
+        "number,title,state,labels,assignees,url"
+      ])
+    );
+    const projectView = parseJson<GhProjectView>(
+      await this.run(["project", "view", String(ref.projectNumber), "--owner", ref.projectOwner, "--format", "json"])
+    );
+    const fieldList = parseJson<GhProjectFieldList>(
+      await this.run(["project", "field-list", String(ref.projectNumber), "--owner", ref.projectOwner, "--format", "json"])
+    );
+    const itemList = parseJson<GhProjectItemList>(
+      await this.run([
+        "project",
+        "item-list",
+        String(ref.projectNumber),
+        "--owner",
+        ref.projectOwner,
+        "--format",
+        "json",
+        "--limit",
+        "200"
+      ])
+    );
+
+    return {
+      issue: {
+        number: issue.number,
+        title: issue.title,
+        state: issue.state === "OPEN" ? "open" : "closed",
+        url: issue.url,
+        labels: issue.labels.map((label) => label.name),
+        assignees: issue.assignees.map((assignee) => assignee.login)
+      },
+      project: mapIssueStartProject(projectView, fieldList),
+      projectItem: mapIssueStartProjectItem(itemList, ref.issueNumber)
+    };
+  }
+
+  async addIssueAssignee(ref: IssueStartRef): Promise<void> {
+    assertGhSuccess(
+      await this.run([
+        "issue",
+        "edit",
+        String(ref.issueNumber),
+        "--repo",
+        ref.repository,
+        "--add-assignee",
+        ref.assignee
+      ])
+    );
+  }
+
+  async replaceIssueStatusLabels(ref: IssueStartRef, currentLabels: readonly string[]): Promise<void> {
+    const statusLabels = currentLabels
+      .filter((label) => label.startsWith("status:"))
+      .filter((label) => label !== "status:in-progress");
+    const args = ["issue", "edit", String(ref.issueNumber), "--repo", ref.repository];
+
+    if (statusLabels.length > 0) {
+      args.push("--remove-label", statusLabels.join(","));
+    }
+
+    if (!currentLabels.includes("status:in-progress")) {
+      args.push("--add-label", "status:in-progress");
+    }
+
+    if (args.length > 5) {
+      assertGhSuccess(await this.run(args));
+    }
+  }
+
+  async setIssueProjectStatus(
+    ref: IssueStartRef,
+    project: IssueStartProject,
+    item: IssueStartProjectItem
+  ): Promise<void> {
+    assertGhSuccess(
+      await this.run([
+        "project",
+        "item-edit",
+        "--id",
+        item.id,
+        "--project-id",
+        project.id,
+        "--field-id",
+        project.statusFieldId,
+        "--single-select-option-id",
+        project.inProgressOptionId
+      ])
+    );
   }
 
   private async loadPullRequestComments(
@@ -460,6 +613,47 @@ function parseJson<T>(output: GitHubCommandOutput): T {
   }
 
   return JSON.parse(output.stdout) as T;
+}
+
+function assertGhSuccess(output: GitHubCommandOutput): void {
+  if (output.exitCode !== 0) {
+    throw new Error(output.stderr || "gh command failed");
+  }
+}
+
+function mapIssueStartProject(projectView: GhProjectView, fieldList: GhProjectFieldList): IssueStartProject | undefined {
+  const statusField = fieldList.fields.find((field) => field.name === "Status");
+  const inProgressOption = statusField?.options?.find((option) => option.name === "In Progress");
+
+  if (!statusField || !inProgressOption) {
+    return undefined;
+  }
+
+  return {
+    id: projectView.id,
+    statusFieldId: statusField.id,
+    inProgressOptionId: inProgressOption.id
+  };
+}
+
+function mapIssueStartProjectItem(
+  itemList: GhProjectItemList,
+  issueNumber: number
+): IssueStartProjectItem | undefined {
+  const item = itemList.items.find((candidate) => candidate.content?.number === issueNumber);
+
+  if (!item) {
+    return undefined;
+  }
+
+  return {
+    id: item.id,
+    ...(item.status ? { status: item.status } : {}),
+    ...(item.priority ? { priority: item.priority } : {}),
+    ...(item.type ? { type: item.type } : {}),
+    ...(item.area ? { area: item.area } : {}),
+    ...(item.source ? { source: item.source } : {})
+  };
 }
 
 function mapGraphqlThread(thread: GhGraphqlThread, comments: readonly GhGraphqlComment[]): PullRequestReviewThread {

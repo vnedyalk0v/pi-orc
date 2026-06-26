@@ -22,11 +22,14 @@ import {
   generateBootstrapPlan,
   GhGitHubAdapter,
   renderBootstrapPlanMarkdown,
+  startIssueWorkflow,
   syncPullRequestReview
 } from "../index.js";
 import type {
   BootstrapFileAction,
   BootstrapPlan,
+  IssueStartAdapter,
+  IssueStartResult,
   PullRequestReviewContextAdapter,
   PullRequestReviewItem,
   PullRequestReviewMutationPlan,
@@ -60,6 +63,7 @@ export interface PiOrcCliStreams {
 
 export interface PiOrcCliOptions {
   cwd?: string;
+  issueStartAdapter?: IssueStartAdapter;
   reviewAdapter?: PullRequestReviewContextAdapter;
   verificationRunner?: VerificationCommandRunner;
 }
@@ -105,6 +109,22 @@ export async function runPiOrcCli(
       return result.status === "pass" ? 0 : 1;
     }
 
+    if (command.kind === "start-issue") {
+      const result = await startIssueWorkflow({
+        repository: command.repository,
+        issueNumber: command.issueNumber,
+        projectOwner: command.projectOwner,
+        projectNumber: command.projectNumber,
+        assignee: command.assignee,
+        execute: command.execute,
+        policy: defaultWorkflowPolicies.assisted,
+        adapter: options.issueStartAdapter ?? new GhGitHubAdapter()
+      });
+
+      streams.stdout.write(renderIssueStartResult(result, command.execute));
+      return result.status === "blocked" ? 1 : 0;
+    }
+
     const intake = command.intakePath ? readJson(command.intakePath) : sampleNewProjectIntake;
 
     if (command.dryRun) {
@@ -147,6 +167,15 @@ type ParsedCommand =
       reportPath?: string;
     }
   | {
+      kind: "start-issue";
+      repository: string;
+      issueNumber: number;
+      projectOwner: string;
+      projectNumber: number;
+      assignee: string;
+      execute: boolean;
+    }
+  | {
       kind: "help";
     };
 
@@ -163,6 +192,10 @@ function parseArgs(args: readonly string[]): ParsedCommand {
 
   if (command === "verify") {
     return parseVerifyArgs(rest);
+  }
+
+  if (command === "start-issue") {
+    return parseIssueStartArgs(rest);
   }
 
   if (command !== "new-project") {
@@ -291,6 +324,101 @@ function parseSyncReviewArgs(args: readonly string[]): ParsedCommand {
   };
 }
 
+function parseIssueStartArgs(args: readonly string[]): ParsedCommand {
+  let repository: string | undefined;
+  let issueNumber: number | undefined;
+  let projectOwner: string | undefined;
+  let projectNumber: number | undefined;
+  let assignee: string | undefined;
+  let execute = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--repo") {
+      repository = args[index + 1];
+      index += 1;
+
+      if (!repository) {
+        throw new Error("start-issue requires --repo owner/name");
+      }
+
+      continue;
+    }
+
+    if (arg === "--issue") {
+      issueNumber = parsePositiveNumber("--issue", args[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--project-owner") {
+      projectOwner = args[index + 1];
+      index += 1;
+
+      if (!projectOwner) {
+        throw new Error("--project-owner requires an owner login");
+      }
+
+      continue;
+    }
+
+    if (arg === "--project") {
+      projectNumber = parsePositiveNumber("--project", args[index + 1]);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--assignee") {
+      assignee = args[index + 1];
+      index += 1;
+
+      if (!assignee) {
+        throw new Error("--assignee requires a GitHub username");
+      }
+
+      continue;
+    }
+
+    if (arg === "--execute") {
+      execute = true;
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${arg ?? ""}`);
+  }
+
+  if (!repository) {
+    throw new Error("start-issue requires --repo owner/name");
+  }
+
+  if (!/^[^/\s]+\/[^/\s]+$/.test(repository)) {
+    throw new Error(`Invalid repository: ${repository}`);
+  }
+
+  if (!issueNumber) {
+    throw new Error("start-issue requires --issue number");
+  }
+
+  if (!projectOwner) {
+    throw new Error("start-issue requires --project-owner owner");
+  }
+
+  if (!projectNumber) {
+    throw new Error("start-issue requires --project number");
+  }
+
+  return {
+    kind: "start-issue",
+    repository,
+    issueNumber,
+    projectOwner,
+    projectNumber,
+    assignee: assignee ?? repository.split("/")[0] ?? projectOwner,
+    execute
+  };
+}
+
 function parsePullRequestNumber(value: string | undefined): number {
   if (!value) {
     throw new Error("--pr requires a pull request number");
@@ -300,6 +428,20 @@ function parsePullRequestNumber(value: string | undefined): number {
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`Invalid pull request number: ${value}`);
+  }
+
+  return parsed;
+}
+
+function parsePositiveNumber(flag: string, value: string | undefined): number {
+  if (!value) {
+    throw new Error(`${flag} requires a number`);
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${flag} number: ${value}`);
   }
 
   return parsed;
@@ -790,6 +932,48 @@ function renderMutationPlans(plans: readonly PullRequestReviewMutationPlan[]): s
     : ["- none"];
 }
 
+function renderIssueStartResult(result: IssueStartResult, execute: boolean): string {
+  return [
+    `# Issue Start: ${result.context.issue.url}`,
+    "",
+    `Issue: #${result.context.issue.number} ${result.context.issue.title}`,
+    `State: ${result.context.issue.state}`,
+    `Status: ${result.status}`,
+    `Assignees: ${result.context.issue.assignees.join(", ") || "none"}`,
+    `Labels: ${result.context.issue.labels.join(", ") || "none"}`,
+    "",
+    "## Project",
+    `Status: ${result.context.projectItem?.status ?? "missing"}`,
+    `Priority: ${result.context.projectItem?.priority ?? "missing"}`,
+    `Type: ${result.context.projectItem?.type ?? "missing"}`,
+    `Area: ${result.context.projectItem?.area ?? "missing"}`,
+    `Source: ${result.context.projectItem?.source ?? "missing"}`,
+    "",
+    "## Blockers",
+    ...(result.blockers.length ? result.blockers.map((blocker) => `- ${blocker}`) : ["- none"]),
+    "",
+    "## Proposed Mutations",
+    ...renderIssueStartMutations(result),
+    "",
+    "## Branch",
+    result.branchName ? `Proposed: ${result.branchName}` : "Proposed: blocked until issue/project state is valid",
+    "Local branch creation: not executed by this command.",
+    execute
+      ? "Execution: requested; eligible issue/project mutations executed."
+      : "Dry run: no GitHub issue/project mutations executed.",
+    ""
+  ].join("\n");
+}
+
+function renderIssueStartMutations(result: IssueStartResult): string[] {
+  return result.proposedMutations.length
+    ? result.proposedMutations.map(
+        (mutation) =>
+          `- ${mutation.mutation}: ${mutation.decision.status}; executed=${mutation.executed}; ${mutation.reason}`
+      )
+    : ["- none"];
+}
+
 function oneLine(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -812,11 +996,13 @@ function helpText(): string {
     "  pi-orc new-project --dry-run [--intake path/to/intake.json]",
     "  pi-orc new-project --intake path/to/intake.json",
     "  pi-orc sync-review --repo owner/name --pr number",
+    "  pi-orc start-issue --repo owner/name --issue number --project-owner owner --project number [--assignee user] [--execute]",
     "  pi-orc verify --cmd \"npm test\" [--cmd \"npm run build\"] [--report docs/ai/verified-reports/report.md]",
     "",
     "Dry-run prints a bootstrap plan only.",
     "Execution writes allowed local template files. GitHub and git actions require explicit confirmation.",
     "sync-review reads one PR review state and prints policy-gated next actions.",
+    "start-issue checks one issue, plans tracking mutations, and proposes a branch name.",
     "verify runs explicit local checks and optionally writes a durable verification report.",
     ""
   ].join("\n");
