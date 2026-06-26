@@ -325,6 +325,7 @@ interface GhProjectItem {
   source?: string;
   content?: {
     number?: number;
+    repository?: string;
   };
 }
 
@@ -436,8 +437,8 @@ export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextA
         ref.projectOwner,
         "--format",
         "json",
-        "--limit",
-        "200"
+        "--query",
+        projectItemQuery(ref)
       ])
     );
 
@@ -451,7 +452,7 @@ export class GhGitHubAdapter implements GitHubAdapter, PullRequestReviewContextA
         assignees: issue.assignees.map((assignee) => assignee.login)
       },
       project: mapIssueStartProject(projectView, fieldList),
-      projectItem: mapIssueStartProjectItem(itemList, ref.issueNumber)
+      projectItem: mapIssueStartProjectItem(itemList, ref)
     };
   }
 
@@ -638,9 +639,13 @@ function mapIssueStartProject(projectView: GhProjectView, fieldList: GhProjectFi
 
 function mapIssueStartProjectItem(
   itemList: GhProjectItemList,
-  issueNumber: number
+  ref: IssueStartRef
 ): IssueStartProjectItem | undefined {
-  const item = itemList.items.find((candidate) => candidate.content?.number === issueNumber);
+  const repository = ref.repository.toLowerCase();
+  const item = itemList.items.find(
+    (candidate) =>
+      candidate.content?.number === ref.issueNumber && candidate.content.repository?.toLowerCase() === repository
+  );
 
   if (!item) {
     return undefined;
@@ -654,6 +659,10 @@ function mapIssueStartProjectItem(
     ...(item.area ? { area: item.area } : {}),
     ...(item.source ? { source: item.source } : {})
   };
+}
+
+function projectItemQuery(ref: IssueStartRef): string {
+  return `repo:${ref.repository} #${ref.issueNumber}`;
 }
 
 function mapGraphqlThread(thread: GhGraphqlThread, comments: readonly GhGraphqlComment[]): PullRequestReviewThread {

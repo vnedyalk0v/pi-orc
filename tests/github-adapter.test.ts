@@ -72,13 +72,22 @@ describe("GhGitHubAdapter", () => {
           stdout: JSON.stringify({
             items: [
               {
+                id: "wrong-item-id",
+                status: "Todo",
+                priority: "P1",
+                type: "feature",
+                area: "workflow",
+                source: "manual",
+                content: { number: 95, repository: "owner/other-repo" }
+              },
+              {
                 id: "item-id",
                 status: "Todo",
                 priority: "P1",
                 type: "feature",
                 area: "workflow",
                 source: "manual",
-                content: { number: 95 }
+                content: { number: 95, repository: "owner/repo" }
               }
             ]
           }),
@@ -153,6 +162,8 @@ describe("GhGitHubAdapter", () => {
       ["project", "field-list"],
       ["project", "item-list"]
     ]);
+    expect(calls[3]).toContain("--query");
+    expect(calls[3]).toContain("repo:owner/repo #95");
     expect(calls[4]).toEqual([
       "issue",
       "edit",
